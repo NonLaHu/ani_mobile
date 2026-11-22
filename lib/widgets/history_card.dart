@@ -162,9 +162,10 @@ class _HistoryCardState extends State<HistoryCard> {
 
                   // Metadata padding
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                    padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           widget.item.anime.title,

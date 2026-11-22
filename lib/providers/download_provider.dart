@@ -139,11 +139,12 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
 
   bool isPaused(String episodeId) => state.isPaused(episodeId);
 
-  /// Starts downloading an episode stream
+  /// Starts downloading an episode stream with optional preselected resolution and subtitle
   Future<void> startDownload({
     required Anime anime,
     required Episode episode,
     VideoSource? preselectedSource,
+    String? preselectedSubtitleUrl,
   }) async {
     final episodeId = episode.id;
     if (isDownloading(episodeId)) return;
@@ -162,24 +163,36 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
     final notifId = episode.id.hashCode.abs() % 100000;
 
     try {
-      // Step 1: Resolve stream source if not provided
+      // Step 1: Resolve stream source and subtitle track
       VideoSource source = preselectedSource ??
           const VideoSource(
             url: '',
             quality: 'Auto',
           );
-      String? subtitleUrl;
+      String? subtitleUrl = preselectedSubtitleUrl;
+
+      // If source or subtitle URL is missing, query scraper
+      if (source.url.isEmpty || (subtitleUrl == null && !episode.isDub)) {
+        try {
+          final scraper = ref.read(scraperServiceProvider);
+          final bundle = await scraper.getStreamSources(episode.id, dub: episode.isDub);
+          if (source.url.isEmpty && bundle.sources.isNotEmpty) {
+            source = bundle.getPreferredSource('1080p') ?? bundle.sources.first;
+          }
+          if (subtitleUrl == null && bundle.subtitles.isNotEmpty) {
+            final engSub = bundle.subtitles.firstWhere(
+              (s) => s.label.toLowerCase().contains('eng'),
+              orElse: () => bundle.subtitles.first,
+            );
+            subtitleUrl = engSub.url;
+          }
+        } catch (e) {
+          print('Download stream/subtitle resolution note: $e');
+        }
+      }
 
       if (source.url.isEmpty) {
-        final scraper = ref.read(scraperServiceProvider);
-        final bundle = await scraper.getStreamSources(episode.id, dub: episode.isDub);
-        if (bundle.sources.isEmpty) {
-          throw Exception('No stream sources found for download');
-        }
-        source = bundle.getPreferredSource('1080p') ?? bundle.sources.first;
-        if (bundle.subtitles.isNotEmpty) {
-          subtitleUrl = bundle.subtitles.first.url;
-        }
+        throw Exception('No stream sources found for download');
       }
 
       final task = DownloadTask(

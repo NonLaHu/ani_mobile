@@ -9,6 +9,7 @@ import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/download_resolution_sheet.dart';
 import '../widgets/loading_cycle.dart';
 import 'player_screen.dart';
 
@@ -916,15 +917,34 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                         ),
                                         tooltip: 'Download Episode',
                                         onPressed: () {
-                                          ref.read(downloadProvider.notifier).startDownload(
-                                                anime: anime,
-                                                episode: ep,
+                                          DownloadResolutionSheet.show(
+                                            context,
+                                            anime: anime,
+                                            episode: ep,
+                                            onQualitySelected: (chosenSource, subUrl) {
+                                              ref.read(downloadProvider.notifier).startDownload(
+                                                    anime: anime,
+                                                    episode: ep,
+                                                    preselectedSource: chosenSource,
+                                                    preselectedSubtitleUrl: subUrl,
+                                                  );
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Row(
+                                                    children: [
+                                                      const Icon(Icons.downloading_rounded, color: AppTheme.accentCyan, size: 20),
+                                                      const SizedBox(width: 10),
+                                                      Expanded(
+                                                        child: Text('Downloading Episode ${ep.number} (${chosenSource.quality}) with subtitles...'),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  backgroundColor: const Color(0xFF2C243B),
+                                                  behavior: SnackBarBehavior.floating,
+                                                  duration: const Duration(seconds: 3),
+                                                ),
                                               );
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text('Downloading Episode ${ep.number}...'),
-                                              duration: const Duration(seconds: 2),
-                                            ),
+                                            },
                                           );
                                         },
                                       );

@@ -427,7 +427,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 185,
+                    height: 205,
                     child: ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       scrollDirection: Axis.horizontal,

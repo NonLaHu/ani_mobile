@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_video_controls.dart';
+import '../widgets/download_resolution_sheet.dart';
 import '../widgets/loading_cycle.dart';
 
 /// Fullscreen anime video player screen powered by media_kit (libmpv backend).
@@ -239,7 +241,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }
       }
     } else {
-      await _player.setSubtitleTrack(SubtitleTrack.auto());
+      // For local offline downloads, auto-load matching .vtt or .srt subtitle if present
+      if (!source.url.startsWith('http')) {
+        final baseFilePath = source.url.replaceAll(RegExp(r'\.(mp4|mkv|ts)$'), '');
+        final localVtt = File('$baseFilePath.vtt');
+        final localSrt = File('$baseFilePath.srt');
+        if (localVtt.existsSync()) {
+          try {
+            await _player.setSubtitleTrack(SubtitleTrack.uri(
+              'file://${localVtt.path}',
+              title: 'English (Offline)',
+              language: 'eng',
+            ));
+            print('Auto-loaded local offline subtitle: ${localVtt.path}');
+          } catch (e) {
+            print('Local subtitle track load note: $e');
+          }
+        } else if (localSrt.existsSync()) {
+          try {
+            await _player.setSubtitleTrack(SubtitleTrack.uri(
+              'file://${localSrt.path}',
+              title: 'English (Offline)',
+              language: 'eng',
+            ));
+            print('Auto-loaded local offline subtitle: ${localSrt.path}');
+          } catch (e) {
+            print('Local subtitle track load note: $e');
+          }
+        } else {
+          await _player.setSubtitleTrack(SubtitleTrack.auto());
+        }
+      } else {
+        await _player.setSubtitleTrack(SubtitleTrack.auto());
+      }
     }
   }
 
@@ -476,17 +510,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 },
                 onBack: _stopAndExit,
                 onDownload: () {
-                  if (state.anime != null && state.currentEpisode != null && state.currentSource != null) {
-                    ref.read(downloadProvider.notifier).startDownload(
-                          anime: state.anime!,
-                          episode: state.currentEpisode!,
-                          preselectedSource: state.currentSource,
+                  if (state.anime != null && state.currentEpisode != null) {
+                    DownloadResolutionSheet.show(
+                      context,
+                      anime: state.anime!,
+                      episode: state.currentEpisode!,
+                      preloadedBundle: state.streamBundle,
+                      onQualitySelected: (chosenSource, subUrl) {
+                        ref.read(downloadProvider.notifier).startDownload(
+                              anime: state.anime!,
+                              episode: state.currentEpisode!,
+                              preselectedSource: chosenSource,
+                              preselectedSubtitleUrl: subUrl,
+                            );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                const Icon(Icons.downloading_rounded, color: AppTheme.accentCyan, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text('Downloading Episode ${state.currentEpisode!.number} (${chosenSource.quality}) with subtitles...'),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: const Color(0xFF2C243B),
+                            behavior: SnackBarBehavior.floating,
+                            duration: const Duration(seconds: 3),
+                          ),
                         );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Downloading Episode ${state.currentEpisode!.number}...'),
-                        duration: const Duration(seconds: 2),
-                      ),
+                      },
                     );
                   }
                 },

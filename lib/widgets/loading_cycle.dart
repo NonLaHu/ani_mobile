@@ -35,6 +35,7 @@ class _LoadingCycleState extends State<LoadingCycle>
     with TickerProviderStateMixin {
   late final AnimationController _rotationController;
   late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
   late final AnimationController _dotController;
 
   @override
@@ -49,6 +50,11 @@ class _LoadingCycleState extends State<LoadingCycle>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
+
+    _pulseAnimation = CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    );
 
     _dotController = AnimationController(
       vsync: this,
@@ -100,12 +106,12 @@ class _LoadingCycleState extends State<LoadingCycle>
                 ),
               ),
 
-              // Inner counter-clockwise secondary cycle arc
+              // Inner counter-clockwise secondary cycle arc (seamless integer rotation)
               AnimatedBuilder(
                 animation: _rotationController,
                 builder: (context, child) {
                   return Transform.rotate(
-                    angle: -_rotationController.value * 2 * math.pi * 1.5,
+                    angle: -_rotationController.value * 2 * math.pi,
                     child: child,
                   );
                 },
@@ -123,13 +129,13 @@ class _LoadingCycleState extends State<LoadingCycle>
                 ),
               ),
 
-              // Pulsing core glowing center
+              // Pulsing core glowing center with smooth easeInOut curve
               if (widget.showCore)
                 AnimatedBuilder(
-                  animation: _pulseController,
+                  animation: _pulseAnimation,
                   builder: (context, child) {
-                    final scale = 0.75 + (_pulseController.value * 0.35);
-                    final opacity = 0.5 + (_pulseController.value * 0.5);
+                    final scale = 0.75 + (_pulseAnimation.value * 0.35);
+                    final opacity = 0.5 + (_pulseAnimation.value * 0.5);
                     return Transform.scale(
                       scale: scale,
                       child: Container(
