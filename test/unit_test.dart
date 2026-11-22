@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ani_mobile/models/anime.dart';
+import 'package:ani_mobile/models/download_task.dart';
 import 'package:ani_mobile/models/episode.dart';
+import 'package:ani_mobile/models/favorite_item.dart';
 import 'package:ani_mobile/models/video_source.dart';
 import 'package:ani_mobile/models/watch_history.dart';
 import 'package:ani_mobile/services/scraper/demo_scraper_service.dart';
@@ -157,6 +159,90 @@ void main() {
       expect(primarySource.headers.containsKey('User-Agent'), isTrue);
       expect(primarySource.headers['Referer']!.isNotEmpty, isTrue);
       expect(bundle.introEnd, equals(85));
+    });
+  });
+
+  group('Download Task Model & Status', () {
+    const anime = Anime(
+      id: 'solo-leveling',
+      title: 'Solo Leveling',
+      coverImage: 'https://example.com/cover.jpg',
+      synopsis: 'A test synopsis',
+    );
+    const episode = Episode(
+      id: 'ep-1',
+      animeId: 'solo-leveling',
+      number: 1,
+      title: 'Episode 1',
+    );
+    const source = VideoSource(
+      url: 'https://example.com/stream.mp4',
+      quality: '1080p',
+    );
+
+    test('DownloadTask serialization and deserialization', () {
+      final task = DownloadTask(
+        id: 'solo-leveling_ep-1',
+        anime: anime,
+        episode: episode,
+        source: source,
+        status: DownloadStatus.completed,
+        progress: 1.0,
+        filePath: '/tmp/test.mp4',
+        downloadedBytes: 1048576,
+        totalBytes: 1048576,
+        createdAt: DateTime.now(),
+      );
+
+      final json = task.toJson();
+      final fromJson = DownloadTask.fromJson(json);
+
+      expect(fromJson.id, equals('solo-leveling_ep-1'));
+      expect(fromJson.isCompleted, isTrue);
+      expect(fromJson.isDownloading, isFalse);
+      expect(fromJson.formattedProgress, equals('100%'));
+      expect(fromJson.filePath, equals('/tmp/test.mp4'));
+    });
+  });
+
+  group('Favorites Models', () {
+    const anime = Anime(
+      id: 'frieren',
+      title: 'Frieren: Beyond Journey\'s End',
+      coverImage: 'https://example.com/frieren.jpg',
+      synopsis: 'An elf mage journey',
+    );
+    const episode = Episode(
+      id: 'frieren-ep-1',
+      animeId: 'frieren',
+      number: 1,
+      title: 'The Journey\'s End',
+    );
+
+    test('FavoriteAnime model serialization & deserialization', () {
+      final now = DateTime.now();
+      final favAnime = FavoriteAnime(anime: anime, addedAt: now);
+      final json = favAnime.toJson();
+      final fromJson = FavoriteAnime.fromJson(json);
+
+      expect(fromJson.anime.id, equals('frieren'));
+      expect(fromJson.anime.title, equals('Frieren: Beyond Journey\'s End'));
+    });
+
+    test('FavoriteEpisode model serialization & deserialization', () {
+      final now = DateTime.now();
+      final favEp = FavoriteEpisode(
+        animeId: anime.id,
+        animeTitle: anime.title,
+        episode: episode,
+        addedAt: now,
+      );
+      final json = favEp.toJson();
+      final fromJson = FavoriteEpisode.fromJson(json);
+
+      expect(fromJson.animeId, equals('frieren'));
+      expect(fromJson.animeTitle, equals('Frieren: Beyond Journey\'s End'));
+      expect(fromJson.episode.number, equals(1));
     });
   });
 }

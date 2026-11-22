@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart' hide PlayerState;
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/video_source.dart';
+import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
 import '../widgets/custom_video_controls.dart';
@@ -50,9 +51,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _player = Player(
       configuration: const PlayerConfiguration(
         title: 'ani-mobile Player',
-        logLevel: MPVLogLevel.warn,
+        logLevel: MPVLogLevel.error,
+        osc: false,
       ),
     );
+
+    // Disable loading external/system lua scripts to prevent libluajit _Unwind_RaiseException crashes on Linux
+    try {
+      (_player.platform as dynamic)?.setProperty('load-scripts', 'no');
+    } catch (_) {}
 
     _videoController = VideoController(
       _player,
@@ -130,6 +137,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  final FocusNode _focusNode = FocusNode();
+
+  Future<void> _stopAndExit() async {
+    if (_isDisposing) return;
+    _isDisposing = true;
+
+    // Persist final position in watch history
+    final playerState = ref.read(playerProvider);
+    if (playerState.anime != null && playerState.currentEpisode != null) {
+      ref.read(watchHistoryProvider.notifier).saveProgress(
+            anime: playerState.anime!,
+            episode: playerState.currentEpisode!,
+            positionSeconds: playerState.position.inSeconds,
+            durationSeconds: playerState.duration.inSeconds,
+          );
+    }
+
+    // Immediately stop and terminate playback
+    try {
+      await _player.pause();
+      await _player.stop();
+    } catch (e) {
+      print('Error stopping player: $e');
+    }
+
+    // Reset player state in Riverpod
+    ref.read(playerProvider.notifier).reset();
+
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   void _loadSourceIntoPlayer(VideoSource source, Duration startPosition) {
     if (_lastLoadedUrl == source.url) return;
     _lastLoadedUrl = source.url;
@@ -151,17 +191,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void dispose() {
     _isDisposing = true;
 
-    // Persist final position in watch history
-    final playerState = ref.read(playerProvider);
-    if (playerState.anime != null && playerState.currentEpisode != null) {
-      ref.read(watchHistoryProvider.notifier).saveProgress(
-            anime: playerState.anime!,
-            episode: playerState.currentEpisode!,
-            positionSeconds: playerState.position.inSeconds,
-            durationSeconds: playerState.duration.inSeconds,
-          );
-    }
-
     // Restore orientation and system UI
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
@@ -174,9 +203,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     for (final sub in _subscriptions) {
       sub.cancel();
     }
+    _focusNode.dispose();
+    _player.stop();
     _player.dispose();
 
     super.dispose();
+  }
+
+  void _handleKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+
+    final state = ref.read(playerProvider);
+
+    if (event.logicalKey == LogicalKeyboardKey.space ||
+        event.logicalKey == LogicalKeyboardKey.keyK) {
+      _player.playOrPause();
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+        event.logicalKey == LogicalKeyboardKey.keyJ) {
+      final newPos = state.position - const Duration(seconds: 10);
+      final target = newPos > Duration.zero ? newPos : Duration.zero;
+      ref.read(playerProvider.notifier).seekTo(target);
+      _player.seek(target);
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
+        event.logicalKey == LogicalKeyboardKey.keyL) {
+      final newPos = state.position + const Duration(seconds: 10);
+      final target = newPos < state.duration ? newPos : state.duration;
+      ref.read(playerProvider.notifier).seekTo(target);
+      _player.seek(target);
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _stopAndExit();
+    } else if (event.logicalKey == LogicalKeyboardKey.keyS) {
+      final target = ref.read(playerProvider.notifier).getIntroSkipTarget();
+      ref.read(playerProvider.notifier).seekTo(target);
+      _player.seek(target);
+    } else if (event.logicalKey == LogicalKeyboardKey.keyN) {
+      if (state.hasNextEpisode) {
+        ref.read(playerProvider.notifier).playNextEpisode();
+      }
+    } else if (event.logicalKey == LogicalKeyboardKey.keyP) {
+      if (state.hasPreviousEpisode) {
+        ref.read(playerProvider.notifier).playPreviousEpisode();
+      }
+    }
   }
 
   @override
@@ -204,56 +272,90 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       });
     }
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Underlying media_kit Video Surface
-          Center(
-            child: Video(
-              controller: _videoController,
-              controls: (videoState) => const SizedBox.shrink(), // Using custom controls overlay
-            ),
-          ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _stopAndExit();
+      },
+      child: KeyboardListener(
+        focusNode: _focusNode,
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Underlying media_kit Video Surface
+              Center(
+                child: Video(
+                  controller: _videoController,
+                  controls: (videoState) => const SizedBox.shrink(),
+                ),
+              ),
 
-          // Custom Overlay Controls
-          CustomVideoControls(
-            playerState: state,
-            onTogglePlayPause: () {
-              _player.playOrPause();
-            },
-            onSeek: (target) {
-              _player.seek(target);
-            },
-            onSkipForward10: () {
-              final newPos = state.position + const Duration(seconds: 10);
-              _player.seek(newPos < state.duration ? newPos : state.duration);
-            },
-            onSkipBackward10: () {
-              final newPos = state.position - const Duration(seconds: 10);
-              _player.seek(newPos > Duration.zero ? newPos : Duration.zero);
-            },
-            onSkipIntro: () {
-              final target = ref.read(playerProvider.notifier).getIntroSkipTarget();
-              _player.seek(target);
-            },
-            onPlayNext: () {
-              ref.read(playerProvider.notifier).playNextEpisode();
-            },
-            onPlayPrevious: () {
-              ref.read(playerProvider.notifier).playPreviousEpisode();
-            },
-            onSelectSource: (source) {
-              ref.read(playerProvider.notifier).selectSource(source);
-            },
-            onRetrySource: () {
-              if (state.currentSource != null) {
-                _loadSourceIntoPlayer(state.currentSource!, state.position);
-              }
-            },
+              // Custom Overlay Controls
+              CustomVideoControls(
+                playerState: state,
+                onTogglePlayPause: () {
+                  _player.playOrPause();
+                },
+                onSeek: (target) {
+                  ref.read(playerProvider.notifier).seekTo(target);
+                  _player.seek(target);
+                },
+                onSkipForward10: () {
+                  final newPos = state.position + const Duration(seconds: 10);
+                  final target = newPos < state.duration ? newPos : state.duration;
+                  ref.read(playerProvider.notifier).seekTo(target);
+                  _player.seek(target);
+                },
+                onSkipBackward10: () {
+                  final newPos = state.position - const Duration(seconds: 10);
+                  final target = newPos > Duration.zero ? newPos : Duration.zero;
+                  ref.read(playerProvider.notifier).seekTo(target);
+                  _player.seek(target);
+                },
+                onSkipIntro: () {
+                  final target = ref.read(playerProvider.notifier).getIntroSkipTarget();
+                  ref.read(playerProvider.notifier).seekTo(target);
+                  _player.seek(target);
+                },
+                onPlayNext: () {
+                  ref.read(playerProvider.notifier).playNextEpisode();
+                },
+                onPlayPrevious: () {
+                  ref.read(playerProvider.notifier).playPreviousEpisode();
+                },
+                onSelectSource: (source) {
+                  ref.read(playerProvider.notifier).selectSource(source);
+                },
+                onRetrySource: () {
+                  if (state.currentSource != null) {
+                    _loadSourceIntoPlayer(state.currentSource!, state.position);
+                  }
+                },
+                onBack: _stopAndExit,
+                onDownload: () {
+                  if (state.anime != null && state.currentEpisode != null && state.currentSource != null) {
+                    ref.read(downloadProvider.notifier).startDownload(
+                          anime: state.anime!,
+                          episode: state.currentEpisode!,
+                          preselectedSource: state.currentSource,
+                        );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Downloading Episode ${state.currentEpisode!.number}...'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

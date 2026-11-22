@@ -17,6 +17,8 @@ class CustomVideoControls extends StatefulWidget {
   final VoidCallback onPlayPrevious;
   final ValueChanged<VideoSource> onSelectSource;
   final VoidCallback onRetrySource;
+  final VoidCallback onBack;
+  final VoidCallback? onDownload;
 
   const CustomVideoControls({
     super.key,
@@ -30,6 +32,8 @@ class CustomVideoControls extends StatefulWidget {
     required this.onPlayPrevious,
     required this.onSelectSource,
     required this.onRetrySource,
+    required this.onBack,
+    this.onDownload,
   });
 
   @override
@@ -39,8 +43,12 @@ class CustomVideoControls extends StatefulWidget {
 class _CustomVideoControlsState extends State<CustomVideoControls> {
   bool _isDraggingSlider = false;
   double _sliderDragValue = 0.0;
+  bool _isSeeking = false;
+  Timer? _seekDebounceTimer;
   Timer? _hideTimer;
   bool _visible = true;
+  String? _quickSeekLabel;
+  Timer? _quickSeekTimer;
 
   @override
   void initState() {
@@ -51,7 +59,19 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _seekDebounceTimer?.cancel();
+    _quickSeekTimer?.cancel();
     super.dispose();
+  }
+
+  void _showQuickSeekFeedback({required bool isForward}) {
+    setState(() {
+      _quickSeekLabel = isForward ? '+10s' : '-10s';
+    });
+    _quickSeekTimer?.cancel();
+    _quickSeekTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _quickSeekLabel = null);
+    });
   }
 
   void _startHideTimer() {
@@ -99,6 +119,73 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
             color: Colors.black45,
             child: Stack(
               children: [
+                // Double tap skip zones
+                Positioned.fill(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onDoubleTap: () {
+                            widget.onSkipBackward10();
+                            _showQuickSeekFeedback(isForward: false);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 140),
+                      Expanded(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onDoubleTap: () {
+                            widget.onSkipForward10();
+                            _showQuickSeekFeedback(isForward: true);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Quick seek feedback badge
+                if (_quickSeekLabel != null)
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTheme.accentCyan, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.accentCyan.withOpacity(0.3),
+                            blurRadius: 16,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _quickSeekLabel!.contains('+')
+                                ? Icons.fast_forward_rounded
+                                : Icons.fast_rewind_rounded,
+                            color: AppTheme.accentCyan,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _quickSeekLabel!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
                 // Top Action Bar
                 Positioned(
                   top: 0,
@@ -171,7 +258,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
           IconButton(
             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 26),
             onPressed: () {
-              Navigator.of(context).pop();
+              widget.onBack();
             },
           ),
           const SizedBox(width: 8),
@@ -260,6 +347,17 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
                 ),
               ),
             ),
+          if (widget.onDownload != null) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.download_rounded, color: Colors.white, size: 24),
+              tooltip: 'Download Episode',
+              onPressed: () {
+                _onUserInteraction();
+                widget.onDownload?.call();
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -362,12 +460,14 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
   }
 
   Widget _buildBottomBar(BuildContext context, PlayerState state) {
-    final currentSec = _isDraggingSlider
+    final currentSec = (_isDraggingSlider || _isSeeking)
         ? _sliderDragValue
         : state.position.inSeconds.toDouble();
     final totalSec = state.duration.inSeconds.toDouble();
     final maxSec = totalSec > 0 ? totalSec : 1.0;
     final clampedSec = currentSec.clamp(0.0, maxSec);
+    final bufferSec = state.buffer.inSeconds.toDouble().clamp(0.0, maxSec);
+    final bufferRatio = (bufferSec / maxSec).clamp(0.0, 1.0);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -381,33 +481,94 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Scrubbing slider
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4.0,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
-              activeTrackColor: AppTheme.primaryPurple,
-              inactiveTrackColor: Colors.white24,
-              thumbColor: AppTheme.accentCyan,
+          // Scrubbing time preview indicator
+          if (_isDraggingSlider)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.darkSurfaceVariant,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppTheme.accentCyan, width: 1),
+                ),
+                child: Text(
+                  _formatDuration(Duration(seconds: _sliderDragValue.toInt())),
+                  style: const TextStyle(
+                    color: AppTheme.accentCyan,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
             ),
-            child: Slider(
-              value: clampedSec,
-              min: 0.0,
-              max: maxSec,
-              onChangeStart: (_) {
-                _isDraggingSlider = true;
-                _hideTimer?.cancel();
-              },
-              onChanged: (val) {
-                setState(() => _sliderDragValue = val);
-              },
-              onChangeEnd: (val) {
-                _isDraggingSlider = false;
-                widget.onSeek(Duration(seconds: val.toInt()));
-                _startHideTimer();
-              },
-            ),
+
+          // Scrubbing slider with buffered track
+          Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              // Buffered track
+              Container(
+                height: 4.0,
+                margin: const EdgeInsets.symmetric(horizontal: 22),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white12,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: bufferRatio,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 4.0,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 16.0),
+                  activeTrackColor: AppTheme.primaryPurple,
+                  inactiveTrackColor: Colors.transparent,
+                  thumbColor: AppTheme.accentCyan,
+                ),
+                child: Slider(
+                  value: clampedSec,
+                  min: 0.0,
+                  max: maxSec,
+                  onChangeStart: (val) {
+                    setState(() {
+                      _isDraggingSlider = true;
+                      _sliderDragValue = val;
+                    });
+                    _hideTimer?.cancel();
+                  },
+                  onChanged: (val) {
+                    setState(() {
+                      _sliderDragValue = val;
+                    });
+                  },
+                  onChangeEnd: (val) {
+                    final target = Duration(seconds: val.toInt());
+                    setState(() {
+                      _isDraggingSlider = false;
+                      _sliderDragValue = val;
+                      _isSeeking = true;
+                    });
+                    widget.onSeek(target);
+                    _seekDebounceTimer?.cancel();
+                    _seekDebounceTimer = Timer(const Duration(milliseconds: 600), () {
+                      if (mounted) setState(() => _isSeeking = false);
+                    });
+                    _startHideTimer();
+                  },
+                ),
+              ),
+            ],
           ),
 
           // Duration timers and extra actions

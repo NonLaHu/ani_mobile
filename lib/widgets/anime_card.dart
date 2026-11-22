@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/anime.dart';
+import '../providers/favorites_provider.dart';
 import '../theme/app_theme.dart';
 
-/// Reusable anime poster card with rating, dub/sub badges, and tap feedback
-class AnimeCard extends StatelessWidget {
+/// Reusable anime poster card with rating, dub/sub badges, favorite toggle, and tap feedback
+class AnimeCard extends ConsumerWidget {
   final Anime anime;
   final VoidCallback onTap;
 
@@ -14,7 +16,10 @@ class AnimeCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isFav = ref.watch(favoritesProvider).isAnimeFav(anime.id);
+
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -25,7 +30,7 @@ class AnimeCard extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: AppTheme.darkSurfaceVariant,
+                color: isDark ? AppTheme.darkSurfaceVariant : AppTheme.lightSurfaceVariant,
                 boxShadow: const [
                   BoxShadow(
                     color: Colors.black26,
@@ -43,19 +48,17 @@ class AnimeCard extends StatelessWidget {
                       anime.coverImage,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(
-                        color: AppTheme.darkSurfaceContainer,
-                        child: const Center(
-                          child: Icon(
-                            Icons.movie_filter_outlined,
-                            size: 40,
-                            color: AppTheme.textMuted,
-                          ),
+                        color: isDark ? AppTheme.darkSurfaceContainer : AppTheme.lightSurfaceContainer,
+                        child: Icon(
+                          Icons.movie_filter_outlined,
+                          size: 40,
+                          color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
                         ),
                       ),
                       loadingBuilder: (context, child, progress) {
                         if (progress == null) return child;
                         return Container(
-                          color: AppTheme.darkSurfaceVariant,
+                          color: isDark ? AppTheme.darkSurfaceVariant : AppTheme.lightSurfaceVariant,
                           child: const Center(
                             child: SizedBox(
                               width: 24,
@@ -127,28 +130,51 @@ class AnimeCard extends StatelessWidget {
                         ),
                       ),
 
-                    // Top-right: Dub / Sub indicator
+                    // Top-right: Favorite Heart Button & Dub/Sub indicator
                     Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryPurple.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          anime.hasDub ? 'SUB / DUB' : 'SUB',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.4,
+                      top: 6,
+                      right: 6,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              ref.read(favoritesProvider.notifier).toggleAnimeFavorite(anime);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.65),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                size: 15,
+                                color: isFav ? Colors.redAccent : Colors.white70,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 2.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryPurple.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              anime.hasDub ? 'DUB' : 'SUB',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
 
@@ -178,8 +204,8 @@ class AnimeCard extends StatelessWidget {
             anime.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 13.5,
               fontWeight: FontWeight.w600,
               height: 1.25,
@@ -194,8 +220,8 @@ class AnimeCard extends StatelessWidget {
                 : (anime.genres.isNotEmpty ? anime.genres.first : 'Anime'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppTheme.textMuted,
+            style: TextStyle(
+              color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
               fontSize: 11.5,
             ),
           ),

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/anime.dart';
 import '../models/episode.dart';
+import '../models/video_source.dart';
 import '../providers/anime_details_provider.dart';
+import '../providers/download_provider.dart';
+import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
 import '../theme/app_theme.dart';
@@ -21,6 +24,8 @@ class DetailsScreen extends ConsumerStatefulWidget {
 class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   bool _isSynopsisExpanded = false;
   bool _isGridView = false;
+  bool _isLaunchingEpisode = false;
+  String? _loadingEpisodeId;
 
   void _playEpisode(
     BuildContext context, {
@@ -29,20 +34,102 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     required List<Episode> playlist,
     int? resumePosition,
   }) async {
-    await ref.read(playerProvider.notifier).setupEpisode(
-          anime: anime,
-          episode: episode,
-          playlist: playlist,
-          resumePositionSeconds: resumePosition,
-        );
+    if (_isLaunchingEpisode) return;
+    setState(() {
+      _isLaunchingEpisode = true;
+      _loadingEpisodeId = episode.id;
+    });
 
-    if (context.mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => const PlayerScreen(),
-        ),
-      );
+    try {
+      // Check if episode is downloaded locally for offline instant playback
+      final downloadNotifier = ref.read(downloadProvider.notifier);
+      if (downloadNotifier.isDownloaded(episode.id)) {
+        final task = downloadNotifier.getTask(episode.id);
+        if (task != null && task.filePath != null) {
+          final offlineSource = VideoSource(
+            url: task.filePath!,
+            quality: 'Offline (${task.source.quality})',
+            isHls: false,
+            serverName: 'Downloaded File',
+          );
+          ref.read(playerProvider.notifier).setupOfflineEpisode(
+                anime: anime,
+                episode: episode,
+                playlist: playlist,
+                source: offlineSource,
+                resumePositionSeconds: resumePosition,
+              );
+
+          if (context.mounted) {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const PlayerScreen(),
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      await ref.read(playerProvider.notifier).setupEpisode(
+            anime: anime,
+            episode: episode,
+            playlist: playlist,
+            resumePositionSeconds: resumePosition,
+          );
+
+      if (context.mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const PlayerScreen(),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLaunchingEpisode = false;
+          _loadingEpisodeId = null;
+        });
+      }
     }
+  }
+
+  void _showDownloadOptions(BuildContext context, Episode ep) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTheme.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.offline_pin_rounded, color: Colors.greenAccent),
+                title: Text('Episode ${ep.number} Downloaded'),
+                subtitle: const Text('Saved locally for offline streaming.'),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                title: const Text('Delete Downloaded File', style: TextStyle(color: Colors.redAccent)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  ref.read(downloadProvider.notifier).deleteDownload(ep.id);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Episode ${ep.number} deleted.')),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -85,6 +172,34 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                 pinned: true,
                 stretch: true,
                 backgroundColor: AppTheme.darkBackground,
+                actions: [
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final isFav = ref.watch(favoritesProvider).isAnimeFav(anime.id);
+                      return IconButton(
+                        icon: Icon(
+                          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          color: isFav ? Colors.redAccent : Colors.white,
+                        ),
+                        tooltip: isFav ? 'Remove from Favorites' : 'Add to Favorites',
+                        onPressed: () {
+                          ref.read(favoritesProvider.notifier).toggleAnimeFavorite(anime);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isFav
+                                    ? 'Removed "${anime.title}" from favorites'
+                                    : 'Added "${anime.title}" to favorites',
+                              ),
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 flexibleSpace: FlexibleSpaceBar(
                   stretchModes: const [
                     StretchMode.zoomBackground,
@@ -478,6 +593,10 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                             final isWatched = history != null &&
                                 history.episode.number == ep.number &&
                                 history.isCompleted;
+                            final isDl = ref.watch(downloadProvider.notifier).isDownloaded(ep.id);
+                            final isDling = ref.watch(downloadProvider.notifier).isDownloading(ep.id);
+                            final isEpFav = ref.watch(favoritesProvider).isEpisodeFav(ep.id);
+                            final isLoading = _loadingEpisodeId == ep.id;
 
                             return InkWell(
                               onTap: () {
@@ -488,6 +607,19 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                   playlist: episodes,
                                 );
                               },
+                              onLongPress: () {
+                                ref.read(favoritesProvider.notifier).toggleEpisodeFavorite(anime, ep);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      isEpFav
+                                          ? 'Removed Episode ${ep.number} from favorites'
+                                          : 'Favorited Episode ${ep.number}',
+                                    ),
+                                    duration: const Duration(seconds: 1),
+                                  ),
+                                );
+                              },
                               borderRadius: BorderRadius.circular(10),
                               child: Container(
                                 decoration: BoxDecoration(
@@ -496,22 +628,68 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                       : AppTheme.darkSurfaceVariant,
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
-                                    color: isWatched
-                                        ? AppTheme.accentCyan
-                                        : const Color(0xFF2C3247),
+                                    color: isDl
+                                        ? Colors.greenAccent
+                                        : isWatched
+                                            ? AppTheme.accentCyan
+                                            : const Color(0xFF2C3247),
                                   ),
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    '${ep.number}',
-                                    style: TextStyle(
-                                      color: isWatched
-                                          ? AppTheme.accentCyan
-                                          : Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                  ),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    if (isLoading)
+                                      const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppTheme.accentCyan,
+                                        ),
+                                      )
+                                    else if (isDling)
+                                      const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.greenAccent,
+                                        ),
+                                      )
+                                    else
+                                      Text(
+                                        '${ep.number}',
+                                        style: TextStyle(
+                                          color: isDl
+                                              ? Colors.greenAccent
+                                              : isWatched
+                                                  ? AppTheme.accentCyan
+                                                  : Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    if (isDl)
+                                      const Positioned(
+                                        top: 3,
+                                        right: 3,
+                                        child: Icon(
+                                          Icons.check_circle,
+                                          size: 10,
+                                          color: Colors.greenAccent,
+                                        ),
+                                      ),
+                                    if (isEpFav)
+                                      const Positioned(
+                                        top: 3,
+                                        left: 3,
+                                        child: Icon(
+                                          Icons.favorite_rounded,
+                                          size: 10,
+                                          color: Colors.redAccent,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                             );
@@ -611,23 +789,138 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                   ],
                                 ],
                               ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.play_circle_fill_rounded,
-                                  color: AppTheme.primaryPurple,
-                                  size: 32,
-                                ),
-                                onPressed: () {
-                                  _playEpisode(
-                                    context,
-                                    anime: anime,
-                                    episode: ep,
-                                    playlist: episodes,
-                                    resumePosition: isCurrentlyWatched
-                                        ? history.positionSeconds
-                                        : null,
-                                  );
-                                },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Favorite Episode Button
+                                  Consumer(
+                                    builder: (context, ref, child) {
+                                      final isEpFav = ref.watch(favoritesProvider).isEpisodeFav(ep.id);
+                                      return IconButton(
+                                        icon: Icon(
+                                          isEpFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                          color: isEpFav ? Colors.redAccent : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                                          size: 20,
+                                        ),
+                                        tooltip: isEpFav ? 'Unfavorite Episode' : 'Favorite Episode',
+                                        onPressed: () {
+                                          ref.read(favoritesProvider.notifier).toggleEpisodeFavorite(anime, ep);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                isEpFav
+                                                    ? 'Removed Episode ${ep.number} from favorites'
+                                                    : 'Favorited Episode ${ep.number}',
+                                              ),
+                                              duration: const Duration(seconds: 1),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+
+                                  // Download Button & Status
+                                  Builder(
+                                    builder: (context) {
+                                      final isDl = ref.watch(downloadProvider.notifier).isDownloaded(ep.id);
+                                      final isDling = ref.watch(downloadProvider.notifier).isDownloading(ep.id);
+                                      final dlTask = ref.watch(downloadProvider)[ep.id];
+
+                                      if (isDling && dlTask != null) {
+                                        return Padding(
+                                          padding: const EdgeInsets.only(right: 6),
+                                          child: SizedBox(
+                                            width: 28,
+                                            height: 28,
+                                            child: Stack(
+                                              alignment: Alignment.center,
+                                              children: [
+                                                CircularProgressIndicator(
+                                                  value: dlTask.progress > 0 ? dlTask.progress : null,
+                                                  strokeWidth: 2.5,
+                                                  color: AppTheme.accentCyan,
+                                                ),
+                                                Text(
+                                                  '${(dlTask.progress * 100).toInt()}%',
+                                                  style: const TextStyle(fontSize: 8, color: Colors.white70),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      }
+
+                                      if (isDl) {
+                                        return IconButton(
+                                          icon: const Icon(
+                                            Icons.check_circle_rounded,
+                                            color: Colors.greenAccent,
+                                            size: 24,
+                                          ),
+                                          tooltip: 'Downloaded (Offline Ready)',
+                                          onPressed: () {
+                                            _showDownloadOptions(context, ep);
+                                          },
+                                        );
+                                      }
+
+                                      return IconButton(
+                                        icon: const Icon(
+                                          Icons.download_for_offline_outlined,
+                                          color: Colors.white54,
+                                          size: 22,
+                                        ),
+                                        tooltip: 'Download Episode',
+                                        onPressed: () {
+                                          ref.read(downloadProvider.notifier).startDownload(
+                                                anime: anime,
+                                                episode: ep,
+                                              );
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Downloading Episode ${ep.number}...'),
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+
+                                  // Play button or loading spinner
+                                  if (_loadingEpisodeId == ep.id)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 4),
+                                      child: SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: AppTheme.accentCyan,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.play_circle_fill_rounded,
+                                        color: AppTheme.primaryPurple,
+                                        size: 32,
+                                      ),
+                                      onPressed: () {
+                                        _playEpisode(
+                                          context,
+                                          anime: anime,
+                                          episode: ep,
+                                          playlist: episodes,
+                                          resumePosition: isCurrentlyWatched
+                                              ? history.positionSeconds
+                                              : null,
+                                        );
+                                      },
+                                    ),
+                                ],
                               ),
                               onTap: () {
                                 _playEpisode(

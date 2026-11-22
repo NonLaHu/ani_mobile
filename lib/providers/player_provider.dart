@@ -135,6 +135,32 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _fetchStreams(episode);
   }
 
+  /// Sets up playback for a downloaded offline episode
+  void setupOfflineEpisode({
+    required Anime anime,
+    required Episode episode,
+    required List<Episode> playlist,
+    required VideoSource source,
+    int? resumePositionSeconds,
+  }) {
+    final bundle = StreamBundle(
+      episodeId: episode.id,
+      animeId: anime.id,
+      episodeNumber: episode.number,
+      sources: [source],
+    );
+
+    state = PlayerState(
+      anime: anime,
+      currentEpisode: episode,
+      playlist: playlist,
+      streamBundle: bundle,
+      currentSource: source,
+      isLoadingStream: false,
+      position: Duration(seconds: resumePositionSeconds ?? 0),
+    );
+  }
+
   Future<void> _fetchStreams(Episode episode) async {
     try {
       final scraper = ref.read(scraperServiceProvider);
@@ -269,6 +295,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       return Duration(seconds: state.streamBundle!.introEnd!);
     }
     return state.position + const Duration(seconds: 85);
+  }
+
+  /// Sets state position immediately when seeking to prevent UI jitter
+  void seekTo(Duration target) {
+    state = state.copyWith(position: target);
+  }
+
+  /// Resets player provider state completely when leaving the player screen
+  void reset() {
+    state = const PlayerState();
   }
 }
 

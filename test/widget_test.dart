@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ani_mobile/main.dart';
 import 'package:ani_mobile/screens/details_screen.dart';
+import 'package:ani_mobile/screens/downloads_screen.dart';
 import 'package:ani_mobile/theme/app_theme.dart';
 import 'package:ani_mobile/providers/scraper_provider.dart';
 import 'package:ani_mobile/services/scraper/scraper_factory.dart';
@@ -30,6 +31,22 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('DownloadsScreen renders empty state gracefully', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: const ProviderScope(
+          child: DownloadsScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Downloaded Anime'), findsOneWidget);
+    expect(find.text('No Downloaded Videos Found'), findsOneWidget);
   });
 
   testWidgets('DetailsScreen renders episode items cleanly without ListTile assertions', (WidgetTester tester) async {

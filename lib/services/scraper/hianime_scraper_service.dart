@@ -47,6 +47,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
 
   @override
   Future<List<Anime>> searchAnime(String query) async {
+    if (query.trim().isEmpty) return [];
     try {
       final url = searchApi.replaceFirst('%s', Uri.encodeQueryComponent(query));
       final doc = await fetchHtml(
@@ -121,6 +122,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
 
   @override
   Future<List<Episode>> getEpisodes(String animeId, {bool dub = false}) async {
+    if (animeId.trim().isEmpty) return [];
     try {
       // In ani-mobile: ${1##*-} extracts numeric ID after the last hyphen (e.g. "534")
       final idParts = animeId.split('-');
