@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/anime.dart';
 import '../models/episode.dart';
 import '../models/video_source.dart';
+import '../services/scraper/anime_scraper_service.dart';
+import '../services/scraper/live_scraper_service.dart';
 import 'anime_details_provider.dart';
 import 'scraper_provider.dart';
 import 'watch_history_provider.dart';
@@ -116,7 +118,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   PlayerNotifier(this.ref) : super(const PlayerState());
 
   /// Sets up playback for a selected episode within an anime
-  Future<void> setupEpisode({
+  Future<bool> setupEpisode({
     required Anime anime,
     required Episode episode,
     required List<Episode> playlist,
@@ -132,7 +134,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       position: Duration(seconds: resumePositionSeconds ?? 0),
     );
 
-    await _fetchStreams(episode);
+    return await _fetchStreams(episode);
   }
 
   /// Sets up playback for a downloaded offline episode
@@ -161,17 +163,31 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
   }
 
-  Future<void> _fetchStreams(Episode episode) async {
+  Future<bool> _fetchStreams(Episode episode) async {
     try {
       final scraper = ref.read(scraperServiceProvider);
-      final bundle = await scraper.getStreamSources(episode.id, dub: episode.isDub);
+      StreamBundle bundle;
+      try {
+        bundle = await scraper.getStreamSources(episode.id, dub: episode.isDub);
+      } catch (err) {
+        if (err is EpisodeNotAvailableException) {
+          rethrow;
+        }
+        if (scraper is! LiveScraperService) {
+          print('Primary scraper stream failed ($err). Falling back to LiveScraperService...');
+          final fallbackScraper = LiveScraperService();
+          bundle = await fallbackScraper.getStreamSources(episode.id, dub: episode.isDub);
+        } else {
+          rethrow;
+        }
+      }
 
       if (bundle.sources.isEmpty) {
         state = state.copyWith(
           isLoadingStream: false,
-          errorMessage: 'No playable video sources found for this episode.',
+          errorMessage: 'This episode has not been uploaded yet or has no playable stream sources.',
         );
-        return;
+        return false;
       }
 
       final preferredQuality = ref.read(preferredQualityProvider);
@@ -183,11 +199,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         isLoadingStream: false,
         errorMessage: null,
       );
+      return true;
     } catch (e) {
+      final message = e is EpisodeNotAvailableException
+          ? e.message
+          : e.toString().replaceFirst('Exception: ', '');
       state = state.copyWith(
         isLoadingStream: false,
-        errorMessage: 'Failed to extract stream: ${e.toString()}',
+        errorMessage: message,
       );
+      return false;
     }
   }
 

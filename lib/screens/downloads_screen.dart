@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/anime.dart';
+import '../models/download_task.dart';
 import '../models/episode.dart';
 import '../models/video_source.dart';
 import '../providers/download_provider.dart';
@@ -93,8 +94,8 @@ class DownloadsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final downloadState = ref.watch(downloadProvider);
-    final activeTasks = downloadState.tasks.values
-        .where((t) => t.isDownloading)
+    final inProgressTasks = downloadState.tasks.values
+        .where((t) => t.isDownloading || t.isPaused || t.status == DownloadStatus.queued)
         .toList();
 
     return Scaffold(
@@ -119,8 +120,8 @@ class DownloadsScreen extends ConsumerWidget {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            // Active In-Progress Downloads Section
-            if (activeTasks.isNotEmpty) ...[
+            // Active & Paused In-Progress Downloads Section
+            if (inProgressTasks.isNotEmpty) ...[
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -129,7 +130,7 @@ class DownloadsScreen extends ConsumerWidget {
                       const Icon(Icons.downloading_rounded, color: AppTheme.accentCyan, size: 20),
                       const SizedBox(width: 8),
                       Text(
-                        'Active Downloads (${activeTasks.length})',
+                        'Downloading & In-Progress (${inProgressTasks.length})',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -143,14 +144,21 @@ class DownloadsScreen extends ConsumerWidget {
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final task = activeTasks[index];
+                    final task = inProgressTasks[index];
+                    final isPaused = task.isPaused;
+                    final isDling = task.isDownloading;
+
                     return Container(
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: AppTheme.darkSurfaceVariant,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.accentCyan.withOpacity(0.3)),
+                        border: Border.all(
+                          color: isPaused
+                              ? Colors.amberAccent.withOpacity(0.4)
+                              : AppTheme.accentCyan.withOpacity(0.3),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,12 +177,25 @@ class DownloadsScreen extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                              Text(
-                                task.formattedProgress,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.accentCyan,
-                                  fontSize: 13,
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: isPaused
+                                      ? Colors.amber.withOpacity(0.15)
+                                      : AppTheme.accentCyan.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: isPaused ? Colors.amberAccent : AppTheme.accentCyan,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  isPaused ? 'PAUSED' : (isDling ? 'DOWNLOADING' : 'QUEUED'),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: isPaused ? Colors.amberAccent : AppTheme.accentCyan,
+                                  ),
                                 ),
                               ),
                             ],
@@ -182,7 +203,7 @@ class DownloadsScreen extends ConsumerWidget {
                           const SizedBox(height: 10),
                           LinearProgressIndicator(
                             value: task.progress > 0 ? task.progress : null,
-                            color: AppTheme.accentCyan,
+                            color: isPaused ? Colors.amberAccent : AppTheme.accentCyan,
                             backgroundColor: Colors.white12,
                           ),
                           const SizedBox(height: 8),
@@ -190,15 +211,37 @@ class DownloadsScreen extends ConsumerWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                '${task.episode.isDub ? "English Dub" : "Japanese Sub"} • ${task.source.quality}',
+                                '${task.episode.isDub ? "English Dub" : "Japanese Sub"} • ${task.source.quality}'
+                                '${task.downloadedBytes > 0 ? " • ${(task.downloadedBytes / (1024 * 1024)).toStringAsFixed(1)} MB" : ""}',
                                 style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
                               ),
-                              TextButton.icon(
-                                icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
-                                label: const Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-                                onPressed: () {
-                                  ref.read(downloadProvider.notifier).cancelDownload(task.episode.id);
-                                },
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isDling)
+                                    TextButton.icon(
+                                      icon: const Icon(Icons.pause_rounded, size: 16, color: Colors.amberAccent),
+                                      label: const Text('Pause', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
+                                      onPressed: () {
+                                        ref.read(downloadProvider.notifier).pauseDownload(task.episode.id);
+                                      },
+                                    )
+                                  else if (isPaused)
+                                    TextButton.icon(
+                                      icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.greenAccent),
+                                      label: const Text('Resume', style: TextStyle(color: Colors.greenAccent, fontSize: 12)),
+                                      onPressed: () {
+                                        ref.read(downloadProvider.notifier).resumeDownload(task.episode.id);
+                                      },
+                                    ),
+                                  TextButton.icon(
+                                    icon: const Icon(Icons.close, size: 16, color: Colors.redAccent),
+                                    label: const Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                                    onPressed: () {
+                                      ref.read(downloadProvider.notifier).cancelDownload(task.episode.id);
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -206,7 +249,7 @@ class DownloadsScreen extends ConsumerWidget {
                       ),
                     );
                   },
-                  childCount: activeTasks.length,
+                  childCount: inProgressTasks.length,
                 ),
               ),
               const SliverToBoxAdapter(child: Divider(height: 28)),

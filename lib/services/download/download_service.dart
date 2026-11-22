@@ -11,6 +11,14 @@ import '../../models/video_source.dart';
 
 typedef DownloadProgressCallback = void Function(double progress, int downloadedBytes, int totalBytes);
 
+/// Exception thrown when a download is suspended by user action
+class DownloadPausedException implements Exception {
+  final String message;
+  const DownloadPausedException([this.message = 'Download paused by user']);
+  @override
+  String toString() => message;
+}
+
 /// Represents an offline video file detected on disk inside the downloads folder
 class DiskVideoFile {
   final File file;
@@ -42,6 +50,7 @@ class DownloadService {
   final Dio _dio;
   final Map<String, Process> _activeFfmpegProcesses = {};
   final Map<String, CancelToken> _activeDioTokens = {};
+  final Set<String> _pausedTasks = {};
 
   DownloadService({Dio? customDio})
       : _dio = customDio ??
@@ -241,8 +250,11 @@ class DownloadService {
       }
     }
 
-    // Attempt ffmpeg remuxing if available
-    if (await hasFfmpeg()) {
+    final stateFile = File('${targetFile.path}.state');
+    final isResuming = stateFile.existsSync() && File('${targetFile.path}.tmp').existsSync();
+
+    // Attempt ffmpeg remuxing if available and not resuming a segment download
+    if (!isResuming && await hasFfmpeg()) {
       try {
         return await _downloadWithFfmpeg(
           taskId: taskId,
@@ -251,6 +263,10 @@ class DownloadService {
           onProgress: onProgress,
         );
       } catch (e) {
+        if (_pausedTasks.contains(taskId)) {
+          _pausedTasks.remove(taskId);
+          throw const DownloadPausedException();
+        }
         print('ffmpeg download failed, falling back to pure Dart HLS: $e');
       }
     }
@@ -378,7 +394,28 @@ class DownloadService {
     _activeDioTokens[taskId] = cancelToken;
 
     final tempFile = File('${targetFile.path}.tmp');
-    if (tempFile.existsSync()) tempFile.deleteSync();
+    final stateFile = File('${targetFile.path}.state');
+
+    int startIndex = 0;
+    int downloadedBytes = 0;
+
+    if (stateFile.existsSync() && tempFile.existsSync()) {
+      try {
+        final stateJson = jsonDecode(stateFile.readAsStringSync()) as Map<String, dynamic>;
+        startIndex = (stateJson['segmentIndex'] as num?)?.toInt() ?? 0;
+        downloadedBytes = tempFile.lengthSync();
+      } catch (_) {
+        startIndex = 0;
+        downloadedBytes = 0;
+      }
+    } else {
+      if (tempFile.existsSync()) {
+        try { tempFile.deleteSync(); } catch (_) {}
+      }
+      if (stateFile.existsSync()) {
+        try { stateFile.deleteSync(); } catch (_) {}
+      }
+    }
 
     try {
       final referer = source.headers['Referer'] ?? 'https://zokoanime.video/';
@@ -450,10 +487,9 @@ class DownloadService {
         }
 
         final sink = tempFile.openSync(mode: FileMode.writeOnlyAppend);
-        var downloadedBytes = 0;
 
         try {
-          for (var i = 0; i < segments.length; i++) {
+          for (var i = startIndex; i < segments.length; i++) {
             if (cancelToken.isCancelled) break;
 
             final segUrl = segments[i];
@@ -472,6 +508,14 @@ class DownloadService {
               downloadedBytes += bytes.length;
             }
 
+            try {
+              stateFile.writeAsStringSync(jsonEncode({
+                'segmentIndex': i + 1,
+                'totalSegments': segments.length,
+                'downloadedBytes': downloadedBytes,
+              }));
+            } catch (_) {}
+
             final ratio = ((i + 1) / segments.length).clamp(0.0, 1.0);
             onProgress(ratio, downloadedBytes, (downloadedBytes / ratio).toInt());
           }
@@ -480,23 +524,53 @@ class DownloadService {
         }
       }
 
+      if (cancelToken.isCancelled && _pausedTasks.contains(taskId)) {
+        throw const DownloadPausedException();
+      }
+
+      if (stateFile.existsSync()) {
+        try { stateFile.deleteSync(); } catch (_) {}
+      }
       if (targetFile.existsSync()) targetFile.deleteSync();
       tempFile.renameSync(targetFile.path);
 
       onProgress(1.0, targetFile.lengthSync(), targetFile.lengthSync());
       return targetFile;
+    } catch (e) {
+      if (_pausedTasks.contains(taskId) || (e is DioException && cancelToken.isCancelled && _pausedTasks.contains(taskId))) {
+        throw const DownloadPausedException();
+      }
+      rethrow;
     } finally {
       _activeDioTokens.remove(taskId);
-      if (tempFile.existsSync() && !targetFile.existsSync()) {
-        try {
-          tempFile.deleteSync();
-        } catch (_) {}
+      final wasPaused = _pausedTasks.remove(taskId);
+      if (!wasPaused && cancelToken.isCancelled) {
+        if (tempFile.existsSync()) {
+          try { tempFile.deleteSync(); } catch (_) {}
+        }
+        if (stateFile.existsSync()) {
+          try { stateFile.deleteSync(); } catch (_) {}
+        }
       }
     }
   }
 
-  /// Cancels an in-progress download task
+  /// Pauses an active download, preserving downloaded segments for later resumption
+  void pauseDownload(String taskId) {
+    _pausedTasks.add(taskId);
+    if (_activeFfmpegProcesses.containsKey(taskId)) {
+      _activeFfmpegProcesses[taskId]?.kill();
+      _activeFfmpegProcesses.remove(taskId);
+    }
+    if (_activeDioTokens.containsKey(taskId)) {
+      _activeDioTokens[taskId]?.cancel('Paused by user');
+      _activeDioTokens.remove(taskId);
+    }
+  }
+
+  /// Cancels an in-progress download task and removes temporary files
   void cancelDownload(String taskId) {
+    _pausedTasks.remove(taskId);
     if (_activeFfmpegProcesses.containsKey(taskId)) {
       _activeFfmpegProcesses[taskId]?.kill();
       _activeFfmpegProcesses.remove(taskId);

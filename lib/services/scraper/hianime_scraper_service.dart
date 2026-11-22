@@ -15,7 +15,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
   @override
   String get name => 'HiAnime (ani-mobile v5 Engine)';
 
-  static const String baseApi = 'https://hianime.at';
+  static const String baseApi = 'https://hianime.fm';
   static const String searchApi = '$baseApi/search?keyword=%s';
   static const String episodesApi = '$baseApi/api/theme/episode/list/%s';
   static const String serversApi = '$baseApi/api/theme/episode/servers?episodeId=%s';
@@ -54,6 +54,10 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
         url,
         headers: {'User-Agent': defaultUserAgent},
       );
+
+      // Remove sidebar before querying film details to prevent top 10/trending markup contamination
+      // This replicates ani-mobile: `sed '/id="main-sidebar"/,$d'`
+      doc.querySelector('#main-sidebar')?.remove();
 
       final list = <Anime>[];
       final elements = doc.querySelectorAll('div.film-detail');
@@ -108,10 +112,42 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
 
   @override
   Future<Anime> getAnimeDetails(String animeId) async {
-    final searchResults = await searchAnime(animeId.replaceAll('-', ' '));
+    // Attempt 1: Fetch exact anime page directly from slug (e.g. https://hianime.to/anime-slug-1234)
+    try {
+      final doc = await fetchHtml(
+        '$baseApi/$animeId',
+        headers: {'User-Agent': defaultUserAgent},
+      );
+      final title = doc.querySelector('.anisc-detail h2.film-name')?.text.trim() ??
+          doc.querySelector('h2.film-name')?.text.trim();
+      if (title != null && title.isNotEmpty) {
+        final imgEl = doc.querySelector('.film-poster img');
+        final cover = imgEl?.attributes['data-src'] ?? imgEl?.attributes['src'] ?? '';
+        final synopsis = doc.querySelector('.film-description .text')?.text.trim() ?? '';
+        final genres = doc.querySelectorAll('.item-list a').map((a) => a.text.trim()).toList();
+        final japTitle = doc.querySelector('.anisc-info .item:has(.item-head) .name')?.text.trim();
+
+        return Anime(
+          id: animeId,
+          title: title,
+          japaneseTitle: japTitle,
+          coverImage: cover,
+          synopsis: synopsis.isNotEmpty ? synopsis : 'Anime from HiAnime.',
+          genres: genres,
+        );
+      }
+    } catch (_) {}
+
+    // Attempt 2: Search by query and strictly match the exact anime id / slug
+    final searchResults = await searchAnime(animeId.replaceAll(RegExp(r'-\d+$'), '').replaceAll('-', ' '));
     if (searchResults.isNotEmpty) {
-      return searchResults.first;
+      final match = searchResults.firstWhere(
+        (a) => a.id == animeId,
+        orElse: () => searchResults.first,
+      );
+      return match;
     }
+
     return Anime(
       id: animeId,
       title: animeId,
@@ -192,12 +228,13 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
       serverEl ??= doc.querySelector('.server-item');
 
       if (serverEl == null) {
-        throw Exception('No streaming servers found for episode $episodeId');
+        throw EpisodeNotAvailableException(
+            'No streaming servers found for episode $episodeId. It may not have been released or uploaded yet.');
       }
 
       final hash = serverEl.attributes['data-hash'] ?? '';
       if (hash.isEmpty) {
-        throw Exception('Empty data-hash from streaming server');
+        throw EpisodeNotAvailableException('Streaming server has no playable video hash for episode $episodeId.');
       }
 
       // Step 2: Base64 decode embed URL
@@ -214,53 +251,75 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
             'Referer': embedReferer,
           },
           responseType: ResponseType.plain,
+          validateStatus: (status) => status != null && status < 500,
         ),
       );
 
       final embedHtml = embedPageResp.data ?? '';
+
+      // Check for explicit 404 / unreleased episode notices in embed host
+      if (embedPageResp.statusCode == 404 ||
+          embedHtml.contains("We couldn't find anything to play here") ||
+          embedHtml.contains('Error</span><span class="code">404') ||
+          embedHtml.contains('Not <span class="stroke">found')) {
+        throw const EpisodeNotAvailableException(
+            'This episode has not been uploaded yet or is not currently available from the streaming host.');
+      }
+
       final pMatch = RegExp(r'window\.__P\s*=\s*["\x27]([^"\x27]*)["\x27]')
           .firstMatch(embedHtml);
 
-      if (pMatch == null) {
-        throw Exception('Could not locate window.__P obfuscated payload');
-      }
-
-      final blob = pMatch.group(1)!;
-
-      // Step 4: Deobfuscate JSON payload with XOR "otaku-embed-v1"
-      final deobfuscatedJson = deobfuscateBlob(blob);
-      if (deobfuscatedJson.isEmpty) {
-        throw Exception('Failed to deobfuscate player JSON');
-      }
-
-      final data = jsonDecode(deobfuscatedJson) as Map<String, dynamic>;
-      final masterM3u8Url = data['src'] as String? ?? '';
-
-      if (masterM3u8Url.isEmpty) {
-        throw Exception('Stream src (.m3u8) not found in player JSON');
-      }
-
-      // Extract subtitles if present
+      String masterM3u8Url = '';
       final subtitles = <SubtitleTrack>[];
-      if (data['subtitles'] is List) {
-        for (final sub in data['subtitles'] as List) {
-          if (sub is Map<String, dynamic>) {
-            final src = sub['src'] as String? ?? '';
-            final lang = sub['lang'] as String? ?? sub['label'] as String? ?? 'en';
-            if (src.isNotEmpty) {
-              subtitles.add(SubtitleTrack(url: src, language: lang, label: lang));
+      int? introStart;
+      int? introEnd;
+
+      if (pMatch != null) {
+        final blob = pMatch.group(1)!;
+        // Step 4: Deobfuscate JSON payload with XOR "otaku-embed-v1"
+        final deobfuscatedJson = deobfuscateBlob(blob);
+        if (deobfuscatedJson.isNotEmpty) {
+          try {
+            final data = jsonDecode(deobfuscatedJson) as Map<String, dynamic>;
+            masterM3u8Url = data['src'] as String? ?? data['file'] as String? ?? '';
+
+            // Extract subtitles if present
+            if (data['subtitles'] is List) {
+              for (final sub in data['subtitles'] as List) {
+                if (sub is Map<String, dynamic>) {
+                  final src = sub['file'] as String? ?? sub['src'] as String? ?? sub['url'] as String? ?? '';
+                  final lang = sub['label'] as String? ?? sub['lang'] as String? ?? 'English';
+                  if (src.isNotEmpty) {
+                    subtitles.add(SubtitleTrack(url: src, language: lang, label: lang));
+                  }
+                }
+              }
             }
+
+            // Extract skip intro timestamps
+            if (data['skip'] is Map<String, dynamic>) {
+              final skip = data['skip'] as Map<String, dynamic>;
+              introStart = (skip['intro_start'] as num?)?.toInt();
+              introEnd = (skip['intro_end'] as num?)?.toInt();
+            }
+          } catch (e) {
+            print('Deobfuscated JSON parse note: $e');
           }
         }
       }
 
-      // Extract skip intro timestamps
-      int? introStart;
-      int? introEnd;
-      if (data['skip'] is Map<String, dynamic>) {
-        final skip = data['skip'] as Map<String, dynamic>;
-        introStart = (skip['intro_start'] as num?)?.toInt();
-        introEnd = (skip['intro_end'] as num?)?.toInt();
+      // Fallback: search for direct .m3u8 URL in embed HTML
+      if (masterM3u8Url.isEmpty) {
+        final m3u8Match = RegExp(r'["\x27](https?://[^"\x27]+\.m3u8[^"\x27]*)["\x27]')
+            .firstMatch(embedHtml);
+        if (m3u8Match != null) {
+          masterM3u8Url = m3u8Match.group(1)!;
+        }
+      }
+
+      if (masterM3u8Url.isEmpty) {
+        throw const EpisodeNotAvailableException(
+            'Could not locate playable stream source in embed player. Episode may be upcoming or not yet uploaded.');
       }
 
       // Step 5: Fetch master playlist to parse qualities (1080p, 720p, etc.)

@@ -31,7 +31,7 @@ class DownloadState {
   });
 
   int get activeDownloadCount =>
-      tasks.values.where((t) => t.isDownloading).length;
+      tasks.values.where((t) => t.isDownloading || t.isPaused).length;
 
   DownloadTask? getTask(String episodeId) => tasks[episodeId];
 
@@ -49,6 +49,11 @@ class DownloadState {
   bool isDownloading(String episodeId) {
     final task = tasks[episodeId];
     return task != null && task.isDownloading;
+  }
+
+  bool isPaused(String episodeId) {
+    final task = tasks[episodeId];
+    return task != null && task.isPaused;
   }
 
   DownloadState copyWith({
@@ -132,6 +137,8 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
 
   bool isDownloading(String episodeId) => state.isDownloading(episodeId);
 
+  bool isPaused(String episodeId) => state.isPaused(episodeId);
+
   /// Starts downloading an episode stream
   Future<void> startDownload({
     required Anime anime,
@@ -150,6 +157,9 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
       print('Download storage permission was denied.');
       return;
     }
+
+    // Notification tracking ID based on hash
+    final notifId = episode.id.hashCode.abs() % 100000;
 
     try {
       // Step 1: Resolve stream source if not provided
@@ -183,9 +193,6 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
       );
 
       state = state.copyWith(tasks: {...state.tasks, episodeId: task});
-
-      // Notification tracking ID based on hash
-      final notifId = episode.id.hashCode.abs() % 100000;
 
       // Show initial notification
       notifService.showDownloadProgress(
@@ -249,6 +256,19 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
         title: 'Download Complete!',
         body: '${anime.title} Episode ${episode.number} is ready for offline playback.',
       );
+    } on DownloadPausedException {
+      final current = state.tasks[episodeId];
+      if (current != null) {
+        state = state.copyWith(
+          tasks: {
+            ...state.tasks,
+            episodeId: current.copyWith(
+              status: DownloadStatus.paused,
+            ),
+          },
+        );
+      }
+      notifService.cancel(notifId);
     } catch (e) {
       print('Download error for episode $episodeId: $e');
       final current = state.tasks[episodeId];
@@ -266,6 +286,33 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
     }
   }
 
+  /// Pauses an active download midway
+  void pauseDownload(String episodeId) {
+    final current = state.tasks[episodeId];
+    if (current == null) return;
+
+    ref.read(downloadServiceProvider).pauseDownload(current.id);
+    ref.read(notificationServiceProvider).cancel(episodeId.hashCode.abs() % 100000);
+
+    state = state.copyWith(
+      tasks: {
+        ...state.tasks,
+        episodeId: current.copyWith(status: DownloadStatus.paused),
+      },
+    );
+  }
+
+  /// Resumes a paused or stopped download task
+  Future<void> resumeDownload(String episodeId) async {
+    final current = state.tasks[episodeId];
+    if (current == null) return;
+    await startDownload(
+      anime: current.anime,
+      episode: current.episode,
+      preselectedSource: current.source,
+    );
+  }
+
   /// Cancels an in-flight download
   void cancelDownload(String episodeId) {
     final current = state.tasks[episodeId];
@@ -274,12 +321,8 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
     ref.read(downloadServiceProvider).cancelDownload(current.id);
     ref.read(notificationServiceProvider).cancel(episodeId.hashCode.abs() % 100000);
 
-    state = state.copyWith(
-      tasks: {
-        ...state.tasks,
-        episodeId: current.copyWith(status: DownloadStatus.cancelled),
-      },
-    );
+    final newTasks = Map<String, DownloadTask>.from(state.tasks)..remove(episodeId);
+    state = state.copyWith(tasks: newTasks);
   }
 
   /// Deletes a downloaded video file from disk
@@ -291,6 +334,10 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
         if (f.existsSync()) f.deleteSync();
         final vtt = File('${current.filePath!.replaceAll('.mp4', '')}.vtt');
         if (vtt.existsSync()) vtt.deleteSync();
+        final tmp = File('${current.filePath!}.tmp');
+        if (tmp.existsSync()) tmp.deleteSync();
+        final st = File('${current.filePath!}.state');
+        if (st.existsSync()) st.deleteSync();
       } catch (e) {
         print('Error deleting file: $e');
       }

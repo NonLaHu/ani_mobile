@@ -5,6 +5,7 @@ import 'video_source.dart';
 enum DownloadStatus {
   queued,
   downloading,
+  paused,
   completed,
   failed,
   cancelled,
@@ -40,6 +41,7 @@ class DownloadTask {
 
   bool get isCompleted => status == DownloadStatus.completed;
   bool get isDownloading => status == DownloadStatus.downloading;
+  bool get isPaused => status == DownloadStatus.paused;
   bool get isFailed => status == DownloadStatus.failed;
 
   String get formattedProgress => '${(progress * 100).toStringAsFixed(0)}%';

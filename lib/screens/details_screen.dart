@@ -71,12 +71,43 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
         }
       }
 
-      await ref.read(playerProvider.notifier).setupEpisode(
+      final ok = await ref.read(playerProvider.notifier).setupEpisode(
             anime: anime,
             episode: episode,
             playlist: playlist,
             resumePositionSeconds: resumePosition,
           );
+
+      if (!ok) {
+        if (context.mounted) {
+          final errorMsg = ref.read(playerProvider).errorMessage ??
+              'Episode ${episode.number} has not been uploaded yet or is currently unavailable.';
+          showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: AppTheme.darkSurface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, color: Colors.amberAccent),
+                  SizedBox(width: 8),
+                  Text('Episode Unavailable'),
+                ],
+              ),
+              content: Text(
+                'Episode ${episode.number} cannot be played:\n\n$errorMsg\n\nThis episode may not have aired yet or has not been uploaded to streaming servers.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('OK', style: TextStyle(color: AppTheme.accentCyan)),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
 
       if (context.mounted) {
         await Navigator.of(context).push(
@@ -599,6 +630,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                             final isLoading = _loadingEpisodeId == ep.id;
 
                             return InkWell(
+                              mouseCursor: SystemMouseCursors.click,
+                              hoverColor: AppTheme.primaryPurple.withOpacity(0.25),
                               onTap: () {
                                 _playEpisode(
                                   context,
@@ -725,6 +758,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                               ),
                               clipBehavior: Clip.antiAlias,
                               child: ListTile(
+                                mouseCursor: SystemMouseCursors.click,
+                                hoverColor: AppTheme.primaryPurple.withOpacity(0.08),
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 14,
                                   vertical: 6,

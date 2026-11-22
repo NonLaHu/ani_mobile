@@ -4,11 +4,15 @@ import 'package:media_kit/media_kit.dart';
 import 'providers/theme_provider.dart';
 import 'screens/home_screen.dart';
 import 'services/notification/notification_service.dart';
+import 'services/player/mpv_config.dart';
 import 'theme/app_theme.dart';
 
 void main() {
   // Ensure Flutter engine bindings are initialized before accessing plugins
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Pre-configure MPV environment before MediaKit initialization to prevent LuaJIT segfaults on Linux
+  MpvConfig.configure();
 
   // Initialize media_kit native libraries (libmpv backend)
   // This enables cross-platform hardware-accelerated video decoding with custom HTTP headers

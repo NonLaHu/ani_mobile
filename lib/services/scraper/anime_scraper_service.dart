@@ -2,6 +2,16 @@ import '../../models/anime.dart';
 import '../../models/episode.dart';
 import '../../models/video_source.dart';
 
+/// Exception thrown when an episode is listed in the catalog but has not been
+/// uploaded or released yet by streaming hosts.
+class EpisodeNotAvailableException implements Exception {
+  final String message;
+  const EpisodeNotAvailableException([this.message = 'Episode has not been uploaded yet or is unavailable from streaming providers.']);
+
+  @override
+  String toString() => message;
+}
+
 /// Abstract service interface defining the core contract for anime scrapers
 /// inspired by the command-line utility `ani-mobile`.
 abstract class AnimeScraperService {

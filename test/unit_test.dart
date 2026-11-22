@@ -5,6 +5,7 @@ import 'package:ani_mobile/models/episode.dart';
 import 'package:ani_mobile/models/favorite_item.dart';
 import 'package:ani_mobile/models/video_source.dart';
 import 'package:ani_mobile/models/watch_history.dart';
+import 'package:ani_mobile/services/scraper/anime_scraper_service.dart';
 import 'package:ani_mobile/services/scraper/demo_scraper_service.dart';
 
 void main() {
@@ -202,6 +203,35 @@ void main() {
       expect(fromJson.isDownloading, isFalse);
       expect(fromJson.formattedProgress, equals('100%'));
       expect(fromJson.filePath, equals('/tmp/test.mp4'));
+    });
+
+    test('DownloadTask paused state support', () {
+      final task = DownloadTask(
+        id: 'solo-leveling_ep-1',
+        anime: anime,
+        episode: episode,
+        source: source,
+        status: DownloadStatus.paused,
+        progress: 0.45,
+        downloadedBytes: 45000000,
+        totalBytes: 100000000,
+        createdAt: DateTime.now(),
+      );
+
+      expect(task.isPaused, isTrue);
+      expect(task.isDownloading, isFalse);
+      expect(task.isCompleted, isFalse);
+      expect(task.formattedProgress, '45%');
+
+      final json = task.toJson();
+      final fromJson = DownloadTask.fromJson(json);
+      expect(fromJson.status, DownloadStatus.paused);
+      expect(fromJson.isPaused, isTrue);
+    });
+    test('EpisodeNotAvailableException carries informative message', () {
+      const ex = EpisodeNotAvailableException('Episode not yet released');
+      expect(ex.message, 'Episode not yet released');
+      expect(ex.toString(), 'Episode not yet released');
     });
   });
 

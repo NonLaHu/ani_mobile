@@ -29,6 +29,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   int _selectedTab = 0; // 0: Discover, 1: Favorites
+  bool _isOpeningPlayer = false;
 
   @override
   void dispose() {
@@ -48,55 +49,89 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.read(searchQueryProvider.notifier).state = '';
   }
 
-  void _playFavoriteEpisode(BuildContext context, String animeId, String animeTitle, Episode episode) async {
-    // Check if downloaded
-    final downloadNotifier = ref.read(downloadProvider.notifier);
-    final anime = Anime(
-      id: animeId,
-      title: animeTitle,
-      coverImage: '',
-      synopsis: '',
-    );
-
-    if (downloadNotifier.isDownloaded(episode.id)) {
-      final task = downloadNotifier.getTask(episode.id);
-      if (task != null && task.filePath != null) {
-        final offlineSource = VideoSource(
-          url: task.filePath!,
-          quality: 'Offline (${task.source.quality})',
-          isHls: false,
-          serverName: 'Downloaded File',
-        );
-        ref.read(playerProvider.notifier).setupOfflineEpisode(
-              anime: anime,
-              episode: episode,
-              playlist: [episode],
-              source: offlineSource,
-            );
-        if (context.mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const PlayerScreen(),
+  Future<void> _safeOpenPlayer(Future<bool> Function() setup) async {
+    if (_isOpeningPlayer) return;
+    setState(() => _isOpeningPlayer = true);
+    try {
+      final success = await setup();
+      if (!success) {
+        if (mounted) {
+          final err = ref.read(playerProvider).errorMessage ?? 'Episode stream is currently unavailable.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.amberAccent, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(err)),
+                ],
+              ),
+              backgroundColor: const Color(0xFF2C243B),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
             ),
           );
         }
         return;
       }
-    }
-
-    await ref.read(playerProvider.notifier).setupEpisode(
-          anime: anime,
-          episode: episode,
-          playlist: [episode],
+      if (mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const PlayerScreen(),
+          ),
         );
-
-    if (context.mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => const PlayerScreen(),
-        ),
-      );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load video stream: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isOpeningPlayer = false);
+      } else {
+        _isOpeningPlayer = false;
+      }
     }
+  }
+
+  void _playFavoriteEpisode(BuildContext context, String animeId, String animeTitle, Episode episode) {
+    _safeOpenPlayer(() async {
+      // Check if downloaded
+      final downloadNotifier = ref.read(downloadProvider.notifier);
+      final anime = Anime(
+        id: animeId,
+        title: animeTitle,
+        coverImage: '',
+        synopsis: 'Favorite Episode',
+      );
+
+      if (downloadNotifier.isDownloaded(episode.id)) {
+        final task = downloadNotifier.getTask(episode.id);
+        if (task != null && task.filePath != null) {
+          final offlineSource = VideoSource(
+            url: task.filePath!,
+            quality: 'Offline (${task.source.quality})',
+            isHls: false,
+            serverName: 'Downloaded File',
+          );
+          ref.read(playerProvider.notifier).setupOfflineEpisode(
+                anime: anime,
+                episode: episode,
+                playlist: [episode],
+                source: offlineSource,
+              );
+          return true;
+        }
+      }
+
+      return await ref.read(playerProvider.notifier).setupEpisode(
+            anime: anime,
+            episode: episode,
+            playlist: [episode],
+          );
+    });
   }
 
   @override
@@ -274,6 +309,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(width: 6),
         ],
+        bottom: _isOpeningPlayer
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(3),
+                child: LinearProgressIndicator(
+                  minHeight: 3,
+                  color: AppTheme.accentCyan,
+                  backgroundColor: Colors.transparent,
+                ),
+              )
+            : null,
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -388,20 +433,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         final item = historyList[index];
                         return HistoryCard(
                           item: item,
-                          onTap: () async {
-                            await ref.read(playerProvider.notifier).setupEpisode(
-                                  anime: item.anime,
-                                  episode: item.episode,
-                                  playlist: [item.episode],
-                                  resumePositionSeconds: item.positionSeconds,
-                                );
-                            if (context.mounted) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const PlayerScreen(),
-                                ),
-                              );
-                            }
+                          onTap: () {
+                            _safeOpenPlayer(() async {
+                              return await ref.read(playerProvider.notifier).setupEpisode(
+                                    anime: item.anime,
+                                    episode: item.episode,
+                                    playlist: [item.episode],
+                                    resumePositionSeconds: item.positionSeconds,
+                                  );
+                            });
                           },
                           onDelete: () {
                             ref
@@ -688,6 +728,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                             clipBehavior: Clip.antiAlias,
                             child: ListTile(
+                              mouseCursor: SystemMouseCursors.click,
+                              hoverColor: AppTheme.primaryPurple.withOpacity(0.08),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                               leading: Container(
                                 width: 44,

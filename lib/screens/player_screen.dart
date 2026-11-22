@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart' hide PlayerState;
 import 'package:media_kit_video/media_kit_video.dart';
-import '../models/video_source.dart';
+import '../models/video_source.dart' hide SubtitleTrack;
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
@@ -31,6 +31,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   String? _lastLoadedUrl;
   bool _isDisposing = false;
+  Timer? _seekDebounceTimer;
 
   @override
   void initState() {
@@ -109,6 +110,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }),
     );
 
+    // Auto-select subtitle track as soon as tracks become available
+    _subscriptions.add(
+      _player.stream.tracks.listen((tracks) {
+        if (!mounted || _isDisposing) return;
+        if (_player.state.track.subtitle == SubtitleTrack.no() && tracks.subtitle.length > 1) {
+          final target = tracks.subtitle.firstWhere(
+            (t) => (t.language?.toLowerCase().contains('eng') ?? false) ||
+                (t.title?.toLowerCase().contains('eng') ?? false),
+            orElse: () => tracks.subtitle.firstWhere(
+              (t) => t.id != 'no',
+              orElse: () => tracks.subtitle.first,
+            ),
+          );
+          if (target.id != 'no') {
+            _player.setSubtitleTrack(target);
+            print('Auto-enabled subtitle track: ${target.title ?? target.language ?? target.id}');
+          }
+        }
+      }),
+    );
+
     // Auto-advance to next episode when video completes
     _subscriptions.add(
       _player.stream.completed.listen((completed) {
@@ -170,7 +192,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  void _loadSourceIntoPlayer(VideoSource source, Duration startPosition) {
+  void _loadSourceIntoPlayer(VideoSource source, Duration startPosition) async {
     if (_lastLoadedUrl == source.url) return;
     _lastLoadedUrl = source.url;
 
@@ -184,12 +206,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       start: startPosition > Duration.zero ? startPosition : null,
     );
 
-    _player.open(media, play: true);
+    await _player.open(media, play: true);
+
+    // Auto-load external subtitle tracks if present
+    final state = ref.read(playerProvider);
+    final subs = state.streamBundle?.subtitles ?? [];
+    if (subs.isNotEmpty) {
+      final eng = subs.firstWhere(
+        (s) => s.label.toLowerCase().contains('eng'),
+        orElse: () => subs.first,
+      );
+      if (eng.url.isNotEmpty) {
+        try {
+          await _player.setSubtitleTrack(SubtitleTrack.uri(
+            eng.url,
+            title: eng.label,
+            language: eng.language,
+          ));
+          print('Auto-loaded external subtitle track: ${eng.label}');
+        } catch (e) {
+          print('Subtitle track load note: $e');
+        }
+      }
+    } else {
+      await _player.setSubtitleTrack(SubtitleTrack.auto());
+    }
+  }
+
+  void _safeSeek(Duration target) {
+    if (_isDisposing) return;
+    ref.read(playerProvider.notifier).seekTo(target);
+    _seekDebounceTimer?.cancel();
+    _seekDebounceTimer = Timer(const Duration(milliseconds: 120), () {
+      if (_isDisposing) return;
+      _player.seek(target);
+    });
   }
 
   @override
   void dispose() {
     _isDisposing = true;
+    _seekDebounceTimer?.cancel();
 
     // Restore orientation and system UI
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -222,20 +279,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         event.logicalKey == LogicalKeyboardKey.keyJ) {
       final newPos = state.position - const Duration(seconds: 10);
       final target = newPos > Duration.zero ? newPos : Duration.zero;
-      ref.read(playerProvider.notifier).seekTo(target);
-      _player.seek(target);
+      _safeSeek(target);
     } else if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
         event.logicalKey == LogicalKeyboardKey.keyL) {
       final newPos = state.position + const Duration(seconds: 10);
       final target = newPos < state.duration ? newPos : state.duration;
-      ref.read(playerProvider.notifier).seekTo(target);
-      _player.seek(target);
+      _safeSeek(target);
     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
       _stopAndExit();
     } else if (event.logicalKey == LogicalKeyboardKey.keyS) {
       final target = ref.read(playerProvider.notifier).getIntroSkipTarget();
-      ref.read(playerProvider.notifier).seekTo(target);
-      _player.seek(target);
+      _safeSeek(target);
     } else if (event.logicalKey == LogicalKeyboardKey.keyN) {
       if (state.hasNextEpisode) {
         ref.read(playerProvider.notifier).playNextEpisode();
@@ -272,6 +326,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       });
     }
 
+    if (state.currentSource == null && !state.isLoadingStream) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          await _stopAndExit();
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: Colors.amberAccent, size: 64),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No Video Stream Available',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    state.errorMessage ?? 'This episode does not have a playable stream source or has not been uploaded yet.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C5CE7)),
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Return to Anime'),
+                    onPressed: _stopAndExit,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -292,6 +388,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 child: Video(
                   controller: _videoController,
                   controls: (videoState) => const SizedBox.shrink(),
+                  subtitleViewConfiguration: const SubtitleViewConfiguration(
+                    style: TextStyle(
+                      fontSize: 22.0,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      shadows: [
+                        Shadow(offset: Offset(-1.5, -1.5), color: Colors.black, blurRadius: 4),
+                        Shadow(offset: Offset(1.5, -1.5), color: Colors.black, blurRadius: 4),
+                        Shadow(offset: Offset(-1.5, 1.5), color: Colors.black, blurRadius: 4),
+                        Shadow(offset: Offset(1.5, 1.5), color: Colors.black, blurRadius: 4),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                    padding: EdgeInsets.all(24.0),
+                  ),
                 ),
               ),
 
@@ -302,25 +413,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   _player.playOrPause();
                 },
                 onSeek: (target) {
-                  ref.read(playerProvider.notifier).seekTo(target);
-                  _player.seek(target);
+                  _safeSeek(target);
                 },
                 onSkipForward10: () {
                   final newPos = state.position + const Duration(seconds: 10);
                   final target = newPos < state.duration ? newPos : state.duration;
-                  ref.read(playerProvider.notifier).seekTo(target);
-                  _player.seek(target);
+                  _safeSeek(target);
                 },
                 onSkipBackward10: () {
                   final newPos = state.position - const Duration(seconds: 10);
                   final target = newPos > Duration.zero ? newPos : Duration.zero;
-                  ref.read(playerProvider.notifier).seekTo(target);
-                  _player.seek(target);
+                  _safeSeek(target);
                 },
                 onSkipIntro: () {
                   final target = ref.read(playerProvider.notifier).getIntroSkipTarget();
-                  ref.read(playerProvider.notifier).seekTo(target);
-                  _player.seek(target);
+                  _safeSeek(target);
                 },
                 onPlayNext: () {
                   ref.read(playerProvider.notifier).playNextEpisode();
