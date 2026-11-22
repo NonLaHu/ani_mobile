@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/download_provider.dart';
+import '../providers/playback_settings_provider.dart';
 import '../providers/scraper_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/scraper/scraper_factory.dart';
@@ -96,6 +97,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final currentScraper = ref.watch(scraperTypeProvider);
+    final hwAccel = ref.watch(hardwareAccelerationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -229,6 +231,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         onPressed: _resetDownloadPath,
                       ),
                     ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Section: Video Playback & Rendering
+          _buildSectionHeader(
+            icon: Icons.play_circle_outline_rounded,
+            title: 'Video Playback & Rendering',
+            color: AppTheme.accentGreen,
+          ),
+          Card(
+            margin: const EdgeInsets.only(top: 8, bottom: 20),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Hardware Video Acceleration (H/W)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Disabled by default (S/W Software Rendering). Software rendering eliminates blue screens and OpenGL texture conflicts on Linux Impeller.',
+                    style: TextStyle(
+                      color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      hwAccel ? 'Hardware Acceleration (H/W)' : 'Software Rendering (S/W)',
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      hwAccel
+                          ? 'Active: Uses GPU video textures (may render blue screen on some Linux GPUs)'
+                          : 'Active: CPU/software pixel buffer decoding (stable, fixes blue screen)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: hwAccel ? Colors.amber : Colors.greenAccent,
+                      ),
+                    ),
+                    value: hwAccel,
+                    onChanged: (val) {
+                      ref.read(hardwareAccelerationProvider.notifier).setHardwareAcceleration(val);
+                    },
                   ),
                 ],
               ),

@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart' hide PlayerState;
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/video_source.dart' hide SubtitleTrack;
 import '../providers/download_provider.dart';
+import '../providers/playback_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
 import '../theme/app_theme.dart';
@@ -66,10 +67,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       (_player.platform as dynamic)?.setProperty('load-scripts', 'no');
     } catch (_) {}
 
+    final enableHw = ref.read(hardwareAccelerationProvider);
     _videoController = VideoController(
       _player,
-      configuration: const VideoControllerConfiguration(
-        enableHardwareAcceleration: true,
+      configuration: VideoControllerConfiguration(
+        enableHardwareAcceleration: enableHw,
       ),
     );
 

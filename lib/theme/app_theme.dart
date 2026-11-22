@@ -20,6 +20,7 @@ class AppTheme {
   static const Color accentCyan = Color(0xFF00E5FF);
   static const Color accentCyanDark = Color(0xFF0097A7);
   static const Color accentCoral = Color(0xFFFF5252);
+  static const Color accentGreen = Color(0xFF00E676);
 
   // Text Colors
   static const Color textPrimary = Color(0xFFF0F2F8);
