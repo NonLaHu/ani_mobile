@@ -87,7 +87,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
         actions: [
-          // Engine Switcher (Demo vs Live)
+          // Engine Switcher (HiAnime vs Live vs Demo)
           PopupMenuButton<ScraperType>(
             tooltip: 'Switch Scraper Engine',
             initialValue: currentScraperType,
@@ -97,9 +97,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: AppTheme.darkSurfaceVariant,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: currentScraperType == ScraperType.demo
+                  color: currentScraperType == ScraperType.hianime
                       ? AppTheme.accentCyan
-                      : AppTheme.primaryPurple,
+                      : currentScraperType == ScraperType.live
+                          ? AppTheme.primaryPurpleLight
+                          : Colors.grey,
                   width: 1,
                 ),
               ),
@@ -107,23 +109,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    currentScraperType == ScraperType.demo
-                        ? Icons.science_outlined
-                        : Icons.wifi_tethering_rounded,
+                    currentScraperType == ScraperType.hianime
+                        ? Icons.bolt_rounded
+                        : currentScraperType == ScraperType.live
+                            ? Icons.wifi_tethering_rounded
+                            : Icons.science_outlined,
                     size: 14,
-                    color: currentScraperType == ScraperType.demo
+                    color: currentScraperType == ScraperType.hianime
                         ? AppTheme.accentCyan
-                        : AppTheme.primaryPurpleLight,
+                        : currentScraperType == ScraperType.live
+                            ? AppTheme.primaryPurpleLight
+                            : Colors.grey,
                   ),
                   const SizedBox(width: 5),
                   Text(
-                    currentScraperType == ScraperType.demo ? 'DEMO' : 'LIVE',
+                    currentScraperType == ScraperType.hianime
+                        ? 'ANI-CLI'
+                        : currentScraperType == ScraperType.live
+                            ? 'LIVE'
+                            : 'DEMO',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: currentScraperType == ScraperType.demo
+                      color: currentScraperType == ScraperType.hianime
                           ? AppTheme.accentCyan
-                          : AppTheme.primaryPurpleLight,
+                          : currentScraperType == ScraperType.live
+                              ? AppTheme.primaryPurpleLight
+                              : Colors.grey,
                     ),
                   ),
                 ],
@@ -134,9 +146,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    type == ScraperType.demo
-                        ? 'Switched to Demo Engine (Guaranteed working streams)'
-                        : 'Switched to Live Provider (ani-mobile architecture)',
+                    type == ScraperType.hianime
+                        ? 'Switched to ani-mobile Engine (HiAnime / ZokoAnime)'
+                        : type == ScraperType.live
+                            ? 'Switched to Live Provider (Gogo/AllAnime)'
+                            : 'Switched to Demo Engine (Guaranteed test streams)',
                   ),
                   duration: const Duration(seconds: 2),
                 ),
@@ -144,12 +158,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
-                value: ScraperType.demo,
-                child: Text('Demo Scraper (High Stability)'),
+                value: ScraperType.hianime,
+                child: Text('ani-mobile Engine (HiAnime / ZokoAnime)'),
               ),
               const PopupMenuItem(
                 value: ScraperType.live,
                 child: Text('Live Provider (Gogo/AllAnime)'),
+              ),
+              const PopupMenuItem(
+                value: ScraperType.demo,
+                child: Text('Demo Scraper (Offline Test Streams)'),
               ),
             ],
           ),

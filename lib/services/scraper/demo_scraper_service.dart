@@ -193,7 +193,7 @@ class DemoScraperService extends BaseScraper implements AnimeScraperService {
   }
 
   @override
-  Future<StreamBundle> getStreamSources(String episodeId) async {
+  Future<StreamBundle> getStreamSources(String episodeId, {bool dub = false}) async {
     await Future<void>.delayed(const Duration(milliseconds: 350));
 
     // Parse episode number from ID if possible

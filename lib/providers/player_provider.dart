@@ -138,7 +138,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> _fetchStreams(Episode episode) async {
     try {
       final scraper = ref.read(scraperServiceProvider);
-      final bundle = await scraper.getStreamSources(episode.id);
+      final bundle = await scraper.getStreamSources(episode.id, dub: episode.isDub);
 
       if (bundle.sources.isEmpty) {
         state = state.copyWith(

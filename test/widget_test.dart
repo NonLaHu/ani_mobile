@@ -4,12 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ani_mobile/main.dart';
 import 'package:ani_mobile/screens/details_screen.dart';
 import 'package:ani_mobile/theme/app_theme.dart';
+import 'package:ani_mobile/providers/scraper_provider.dart';
+import 'package:ani_mobile/services/scraper/scraper_factory.dart';
 
 void main() {
   testWidgets('App renders Home Screen smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: AniMobileApp(),
+      ProviderScope(
+        overrides: [
+          scraperTypeProvider.overrideWith((ref) => ScraperType.demo),
+        ],
+        child: const AniMobileApp(),
       ),
     );
 
@@ -31,8 +36,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.darkTheme,
-        home: const ProviderScope(
-          child: DetailsScreen(animeId: 'jujutsu-kaisen'),
+        home: ProviderScope(
+          overrides: [
+            scraperTypeProvider.overrideWith((ref) => ScraperType.demo),
+          ],
+          child: const DetailsScreen(animeId: 'jujutsu-kaisen'),
         ),
       ),
     );

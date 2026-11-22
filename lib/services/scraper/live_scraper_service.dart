@@ -207,7 +207,7 @@ class LiveScraperService extends BaseScraper implements AnimeScraperService {
   }
 
   @override
-  Future<StreamBundle> getStreamSources(String episodeId) async {
+  Future<StreamBundle> getStreamSources(String episodeId, {bool dub = false}) async {
     try {
       // Step 1: Open episode page to extract the video iframe player URL
       final doc = await fetchHtml('$baseUrl/$episodeId');

@@ -23,5 +23,6 @@ abstract class AnimeScraperService {
 
   /// Extracts playable stream sources, quality options, and required HTTP headers
   /// for a specific episode.
-  Future<StreamBundle> getStreamSources(String episodeId);
+  /// Supports selecting between Subbed and Dubbed streams.
+  Future<StreamBundle> getStreamSources(String episodeId, {bool dub = false});
 }
