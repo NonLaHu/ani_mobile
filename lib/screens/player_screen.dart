@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:media_kit/media_kit.dart';
+import 'package:media_kit/media_kit.dart' hide PlayerState;
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/video_source.dart';
 import '../providers/player_provider.dart';
@@ -185,10 +185,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     // When the state source changes or updates, load it into media_kit
     ref.listen<PlayerState>(playerProvider, (previous, next) {
-      if (next.currentSource != null &&
-          next.currentSource?.url != previous?.currentSource?.url) {
+      final nextSrc = next.currentSource;
+      final prevSrc = previous?.currentSource;
+      if (nextSrc != null && nextSrc.url != prevSrc?.url) {
         _loadSourceIntoPlayer(
-          next.currentSource!,
+          nextSrc,
           next.position,
         );
       }
@@ -212,7 +213,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           Center(
             child: Video(
               controller: _videoController,
-              controls: NoVideoControls, // Using our custom controls overlay
+              controls: (videoState) => const SizedBox.shrink(), // Using custom controls overlay
             ),
           ),
 

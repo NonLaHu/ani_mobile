@@ -1,6 +1,15 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - linux/**
+  errors:
+    deprecated_member_use: ignore
   language:
     strict-casts: true
     strict-inference: true

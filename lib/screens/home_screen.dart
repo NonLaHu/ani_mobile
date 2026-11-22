@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/anime.dart';
 import '../providers/player_provider.dart';
 import '../providers/scraper_provider.dart';
 import '../providers/search_provider.dart';

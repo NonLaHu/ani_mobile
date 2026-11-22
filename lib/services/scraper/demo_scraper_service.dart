@@ -206,7 +206,7 @@ class DemoScraperService extends BaseScraper implements AnimeScraperService {
     // with custom Referer and User-Agent headers required by streaming CDNs.
     final headers = buildHeaders(
       referer: 'https://megacloud.tv/embed-2/e-1/?z=',
-      userAgent: defaultUserAgent,
+      userAgent: BaseScraper.defaultUserAgent,
       extra: {
         'Origin': 'https://megacloud.tv',
         'X-Requested-With': 'XMLHttpRequest',

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/video_source.dart';
 import '../providers/player_provider.dart';
 import '../theme/app_theme.dart';

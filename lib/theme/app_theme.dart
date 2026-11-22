@@ -18,25 +18,25 @@ class AppTheme {
   static const Color textMuted = Color(0xFF656985);
 
   static ThemeData get darkTheme {
-    final colorScheme = ColorScheme.dark(
+    const colorScheme = ColorScheme.dark(
       primary: primaryPurple,
       onPrimary: Colors.white,
-      primaryContainer: const Color(0xFF311B92),
+      primaryContainer: Color(0xFF311B92),
       onPrimaryContainer: primaryPurpleLight,
       secondary: accentCyan,
       onSecondary: Colors.black,
-      secondaryContainer: const Color(0xFF004D5A),
+      secondaryContainer: Color(0xFF004D5A),
       onSecondaryContainer: accentCyan,
       tertiary: accentCoral,
       onTertiary: Colors.white,
-      error: const Color(0xFFCF6679),
+      error: Color(0xFFCF6679),
       onError: Colors.black,
       surface: darkSurface,
       onSurface: textPrimary,
       surfaceContainer: darkSurfaceContainer,
       surfaceContainerHigh: darkSurfaceVariant,
-      outline: const Color(0xFF2E344A),
-      outlineVariant: const Color(0xFF1E2232),
+      outline: Color(0xFF2E344A),
+      outlineVariant: Color(0xFF1E2232),
     );
 
     return ThemeData(
@@ -58,7 +58,7 @@ class AppTheme {
           letterSpacing: -0.5,
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: darkSurface,
         elevation: 0,
         shape: RoundedRectangleBorder(

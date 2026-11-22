@@ -1,4 +1,3 @@
-import 'dart:convert';
 import '../../models/anime.dart';
 import '../../models/episode.dart';
 import '../../models/video_source.dart';
@@ -237,7 +236,7 @@ class LiveScraperService extends BaseScraper implements AnimeScraperService {
 
       // Extract m3u8 regex from embedded scripts
       final htmlContent = embedDoc.outerHtml;
-      final m3u8Match = RegExp(r'file:\s*["\'](https?://[^"\']+\.m3u8[^"\']*)["\']')
+      final m3u8Match = RegExp(r'''file:\s*["'](https?://[^"']+\.m3u8[^"']*)["']''')
           .firstMatch(htmlContent);
 
       if (m3u8Match != null) {
