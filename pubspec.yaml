@@ -1,0 +1,39 @@
+name: ani_mobile
+description: "A cross-platform Flutter anime streaming application inspired by ani-mobile."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Networking & Scraping
+  dio: ^5.7.0
+  html: ^0.15.4
+
+  # Video Playback (MPV-backed MediaKit with native custom HTTP header support)
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.5
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+
+  # Local Persistence
+  shared_preferences: ^2.3.2
+
+  # UI & Utility
+  intl: ^0.19.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
