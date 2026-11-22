@@ -534,21 +534,23 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
-                            decoration: BoxDecoration(
+                            child: Material(
                               color: AppTheme.darkSurface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isCurrentlyWatched
-                                    ? AppTheme.primaryPurpleLight.withOpacity(0.5)
-                                    : const Color(0xFF222638),
-                                width: 1,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: isCurrentlyWatched
+                                      ? AppTheme.primaryPurpleLight.withOpacity(0.5)
+                                      : const Color(0xFF222638),
+                                  width: 1,
+                                ),
                               ),
-                            ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 6,
-                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 6,
+                                ),
                               leading: Container(
                                 width: 44,
                                 height: 44,
@@ -639,7 +641,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                 );
                               },
                             ),
-                          );
+                          ),
+                        );
                         },
                         childCount: episodes.length,
                       ),
