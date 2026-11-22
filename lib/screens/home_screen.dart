@@ -13,6 +13,7 @@ import '../services/scraper/scraper_factory.dart';
 import '../theme/app_theme.dart';
 import '../widgets/anime_card.dart';
 import '../widgets/history_card.dart';
+import '../widgets/loading_cycle.dart';
 import 'details_screen.dart';
 import 'downloads_screen.dart';
 import 'player_screen.dart';
@@ -320,14 +321,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               )
             : null,
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(searchResultsProvider);
-          ref.invalidate(trendingAnimeProvider);
-        },
-        color: AppTheme.primaryPurple,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        child: CustomScrollView(
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(searchResultsProvider);
+              ref.invalidate(trendingAnimeProvider);
+            },
+            color: AppTheme.primaryPurple,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            child: CustomScrollView(
           slivers: [
             // Search Bar Header
             SliverToBoxAdapter(
@@ -488,11 +491,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               // Anime Grid / Results
               searchResultsAsync.when(
-                loading: () => const SliverFillRemaining(
+                loading: () => SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
-                    child: CircularProgressIndicator(
-                      color: AppTheme.primaryPurple,
+                    child: LoadingCycle(
+                      message: activeQuery.isNotEmpty
+                          ? 'Searching anime titles'
+                          : 'Loading trending catalog',
                     ),
                   ),
                 ),
@@ -820,6 +825,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
       ),
-    );
+      if (_isOpeningPlayer)
+        const LoadingCycleOverlay(
+          title: 'Opening Player',
+          subtitle: 'Connecting to servers & loading stream...',
+        ),
+    ],
+  ),
+);
   }
 }

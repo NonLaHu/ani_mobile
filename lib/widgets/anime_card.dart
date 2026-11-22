@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/anime.dart';
 import '../providers/favorites_provider.dart';
 import '../theme/app_theme.dart';
+import 'loading_cycle.dart';
 
 /// Reusable anime poster card with hover elevation, click feedback, rating, and favorite toggle
 class AnimeCard extends ConsumerStatefulWidget {
@@ -92,13 +93,10 @@ class _AnimeCardState extends ConsumerState<AnimeCard> {
                             return Container(
                               color: isDark ? AppTheme.darkSurfaceVariant : AppTheme.lightSurfaceVariant,
                               child: const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppTheme.primaryPurple,
-                                  ),
+                                child: LoadingCycle(
+                                  size: 24,
+                                  strokeWidth: 2.2,
+                                  showCore: false,
                                 ),
                               ),
                             );

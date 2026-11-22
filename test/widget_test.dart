@@ -7,6 +7,7 @@ import 'package:ani_mobile/screens/downloads_screen.dart';
 import 'package:ani_mobile/theme/app_theme.dart';
 import 'package:ani_mobile/providers/scraper_provider.dart';
 import 'package:ani_mobile/services/scraper/scraper_factory.dart';
+import 'package:ani_mobile/widgets/loading_cycle.dart';
 
 void main() {
   testWidgets('App renders Home Screen smoke test', (WidgetTester tester) async {
@@ -67,5 +68,30 @@ void main() {
     // Verify Episodes section and list tiles render without assertions
     expect(find.text('Episodes'), findsOneWidget);
     expect(find.textContaining('Episode 1:'), findsWidgets);
+  });
+
+  testWidgets('LoadingCycle and LoadingCycleOverlay render and animate cleanly', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: const Scaffold(
+          body: LoadingCycleOverlay(
+            title: 'Opening Stream',
+            subtitle: 'Connecting to server...',
+          ),
+        ),
+      ),
+    );
+
+    // Initial pump
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Opening Stream'), findsOneWidget);
+    expect(find.text('Connecting to server...'), findsOneWidget);
+    expect(find.byType(LoadingCycle), findsOneWidget);
+
+    // Pump further along animation cycle
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(LoadingCycle), findsOneWidget);
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/video_source.dart';
 import '../providers/player_provider.dart';
 import '../theme/app_theme.dart';
+import 'loading_cycle.dart';
 import 'quality_selector_sheet.dart';
 
 /// Comprehensive custom on-screen video controls overlay for PlayerScreen.
@@ -365,16 +366,9 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
 
   Widget _buildCenterControls(PlayerState state) {
     if (state.isLoadingStream) {
-      return const Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircularProgressIndicator(color: AppTheme.primaryPurpleLight),
-          SizedBox(height: 14),
-          Text(
-            'Injecting headers & loading stream...',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-        ],
+      return const LoadingCycle(
+        size: 56,
+        message: 'Injecting headers & loading stream',
       );
     }
 

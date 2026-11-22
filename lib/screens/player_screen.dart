@@ -8,7 +8,9 @@ import '../models/video_source.dart' hide SubtitleTrack;
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
+import '../theme/app_theme.dart';
 import '../widgets/custom_video_controls.dart';
+import '../widgets/loading_cycle.dart';
 
 /// Fullscreen anime video player screen powered by media_kit (libmpv backend).
 ///
@@ -98,6 +100,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _player.stream.playing.listen((isPlaying) {
         if (!mounted || _isDisposing) return;
         ref.read(playerProvider.notifier).updatePlaybackMetrics(isPlaying: isPlaying);
+      }),
+    );
+
+    // Buffering state updates
+    _subscriptions.add(
+      _player.stream.buffering.listen((isBuffering) {
+        if (!mounted || _isDisposing) return;
+        ref.read(playerProvider.notifier).updatePlaybackMetrics(isBuffering: isBuffering);
       }),
     );
 
@@ -405,6 +415,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ),
                 ),
               ),
+
+              // Central Loading Cycle (shows when loading stream or buffering video)
+              if (state.isLoadingStream || state.isBuffering)
+                IgnorePointer(
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.accentCyan.withOpacity(0.3)),
+                      ),
+                      child: LoadingCycle(
+                        size: 56,
+                        message: state.isLoadingStream
+                            ? 'Loading stream'
+                            : 'Buffering',
+                      ),
+                    ),
+                  ),
+                ),
 
               // Custom Overlay Controls
               CustomVideoControls(

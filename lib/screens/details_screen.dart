@@ -9,6 +9,7 @@ import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/loading_cycle.dart';
 import 'player_screen.dart';
 
 /// Details screen displaying anime metadata, synopsis, Sub/Dub toggle, and episode catalog
@@ -174,7 +175,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     return Scaffold(
       body: animeAsync.when(
         loading: () => const Center(
-          child: CircularProgressIndicator(color: AppTheme.primaryPurple),
+          child: LoadingCycle(message: 'Loading anime details'),
         ),
         error: (err, _) => Scaffold(
           appBar: AppBar(),
@@ -195,8 +196,10 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           ),
         ),
         data: (anime) {
-          return CustomScrollView(
-            slivers: [
+          return Stack(
+            children: [
+              CustomScrollView(
+                slivers: [
               // Hero Banner & Collapsing App Bar
               SliverAppBar(
                 expandedHeight: 300,
@@ -392,6 +395,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                 )
                               : episodes.first;
 
+                          final isCtaLoading = _isLaunchingEpisode && _loadingEpisodeId == resumeEp.id;
+
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 14),
                             child: SizedBox(
@@ -404,25 +409,31 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
-                                icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                                icon: isCtaLoading
+                                    ? const LoadingCycle(size: 20, strokeWidth: 2.2, showCore: false)
+                                    : const Icon(Icons.play_arrow_rounded, size: 28),
                                 label: Text(
-                                  history != null
-                                      ? 'Resume Episode ${resumeEp.number} (${history.formattedProgress.split(' / ').first})'
-                                      : 'Watch Episode 1',
+                                  isCtaLoading
+                                      ? 'Loading Stream...'
+                                      : (history != null
+                                          ? 'Resume Episode ${resumeEp.number} (${history.formattedProgress.split(' / ').first})'
+                                          : 'Watch Episode 1'),
                                   style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                onPressed: () {
-                                  _playEpisode(
-                                    context,
-                                    anime: anime,
-                                    episode: resumeEp,
-                                    playlist: episodes,
-                                    resumePosition: history?.positionSeconds,
-                                  );
-                                },
+                                onPressed: isCtaLoading
+                                    ? null
+                                    : () {
+                                        _playEpisode(
+                                          context,
+                                          anime: anime,
+                                          episode: resumeEp,
+                                          playlist: episodes,
+                                          resumePosition: history?.positionSeconds,
+                                        );
+                                      },
                               ),
                             ),
                           );
@@ -574,9 +585,9 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
               episodesAsync.when(
                 loading: () => const SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.all(32),
+                    padding: EdgeInsets.all(36),
                     child: Center(
-                      child: CircularProgressIndicator(color: AppTheme.primaryPurple),
+                      child: LoadingCycle(message: 'Loading episodes'),
                     ),
                   ),
                 ),
@@ -672,13 +683,10 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                   alignment: Alignment.center,
                                   children: [
                                     if (isLoading)
-                                      const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: AppTheme.accentCyan,
-                                        ),
+                                      const LoadingCycle(
+                                        size: 20,
+                                        strokeWidth: 2.2,
+                                        showCore: false,
                                       )
                                     else if (isDling)
                                       const SizedBox(
@@ -926,14 +934,11 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                   // Play button or loading spinner
                                   if (_loadingEpisodeId == ep.id)
                                     const Padding(
-                                      padding: EdgeInsets.symmetric(horizontal: 4),
-                                      child: SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: AppTheme.accentCyan,
-                                        ),
+                                      padding: EdgeInsets.symmetric(horizontal: 6),
+                                      child: LoadingCycle(
+                                        size: 24,
+                                        strokeWidth: 2.5,
+                                        showCore: false,
                                       ),
                                     )
                                   else
@@ -981,8 +986,15 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
               const SliverToBoxAdapter(child: SizedBox(height: 40)),
             ],
-          );
-        },
+          ),
+          if (_isLaunchingEpisode)
+            const LoadingCycleOverlay(
+              title: 'Loading Episode',
+              subtitle: 'Resolving stream sources & preparing playback...',
+            ),
+        ],
+      );
+    },
       ),
     );
   }

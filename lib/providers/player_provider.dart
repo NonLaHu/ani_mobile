@@ -23,6 +23,7 @@ class PlayerState {
   final Duration duration;
   final Duration buffer;
   final bool isPlaying;
+  final bool isBuffering;
   final bool isControlsVisible;
   final double playbackSpeed;
 
@@ -39,6 +40,7 @@ class PlayerState {
     this.duration = Duration.zero,
     this.buffer = Duration.zero,
     this.isPlaying = false,
+    this.isBuffering = false,
     this.isControlsVisible = true,
     this.playbackSpeed = 1.0,
   });
@@ -89,6 +91,7 @@ class PlayerState {
     Duration? duration,
     Duration? buffer,
     bool? isPlaying,
+    bool? isBuffering,
     bool? isControlsVisible,
     double? playbackSpeed,
   }) {
@@ -105,6 +108,7 @@ class PlayerState {
       duration: duration ?? this.duration,
       buffer: buffer ?? this.buffer,
       isPlaying: isPlaying ?? this.isPlaying,
+      isBuffering: isBuffering ?? this.isBuffering,
       isControlsVisible: isControlsVisible ?? this.isControlsVisible,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     );
@@ -272,12 +276,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     Duration? duration,
     Duration? buffer,
     bool? isPlaying,
+    bool? isBuffering,
   }) {
     state = state.copyWith(
       position: position,
       duration: duration,
       buffer: buffer,
       isPlaying: isPlaying,
+      isBuffering: isBuffering,
     );
 
     // Save progress to watch history every ~10 seconds
