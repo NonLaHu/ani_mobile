@@ -64,7 +64,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   const Icon(Icons.info_outline, color: Colors.amberAccent, size: 20),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(err)),
+                  Expanded(
+                    child: Text(
+                      err,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                    ),
+                  ),
                 ],
               ),
               backgroundColor: const Color(0xFF2C243B),
@@ -262,12 +267,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Text('ani-mobile Engine (HiAnime / ZokoAnime)'),
               ),
               const PopupMenuItem(
+                enabled: false,
                 value: ScraperType.live,
-                child: Text('Live Provider (Gogo/AllAnime)'),
+                child: Text('Live Provider (Coming Soon)', style: TextStyle(color: Colors.grey)),
               ),
               const PopupMenuItem(
+                enabled: false,
                 value: ScraperType.demo,
-                child: Text('Demo Scraper (Offline Test Streams)'),
+                child: Text('Demo Scraper (Coming Soon)', style: TextStyle(color: Colors.grey)),
               ),
             ],
           ),

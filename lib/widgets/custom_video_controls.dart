@@ -20,6 +20,8 @@ class CustomVideoControls extends StatefulWidget {
   final VoidCallback onRetrySource;
   final VoidCallback onBack;
   final VoidCallback? onDownload;
+  final bool subtitlesEnabled;
+  final VoidCallback? onToggleSubtitles;
 
   const CustomVideoControls({
     super.key,
@@ -35,6 +37,8 @@ class CustomVideoControls extends StatefulWidget {
     required this.onRetrySource,
     required this.onBack,
     this.onDownload,
+    this.subtitlesEnabled = true,
+    this.onToggleSubtitles,
   });
 
   @override
@@ -603,6 +607,27 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
                           ),
                         ),
                       ),
+                    ),
+
+                  // Subtitles ON / OFF toggle button
+                  if (widget.onToggleSubtitles != null)
+                    IconButton(
+                      icon: Icon(
+                        widget.subtitlesEnabled
+                            ? Icons.closed_caption_rounded
+                            : Icons.closed_caption_disabled_rounded,
+                        color: widget.subtitlesEnabled
+                            ? AppTheme.accentCyan
+                            : Colors.white38,
+                        size: 24,
+                      ),
+                      tooltip: widget.subtitlesEnabled
+                          ? 'Disable Subtitles (CC)'
+                          : 'Enable Subtitles (CC)',
+                      onPressed: () {
+                        _onUserInteraction();
+                        widget.onToggleSubtitles?.call();
+                      },
                     ),
 
                   // Quality switcher button

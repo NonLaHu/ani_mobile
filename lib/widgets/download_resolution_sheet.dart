@@ -32,7 +32,6 @@ class DownloadResolutionSheet extends ConsumerStatefulWidget {
   }) {
     return showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.darkSurface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -136,7 +135,7 @@ class _DownloadResolutionSheetState extends ConsumerState<DownloadResolutionShee
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -166,8 +165,8 @@ class _DownloadResolutionSheetState extends ConsumerState<DownloadResolutionShee
                     children: [
                       Text(
                         'Download Episode ${widget.episode.number}',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -177,8 +176,8 @@ class _DownloadResolutionSheetState extends ConsumerState<DownloadResolutionShee
                         '${widget.anime.title} • ${widget.episode.isDub ? "English Dub" : "Japanese Sub"}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.textSecondary,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 13,
                         ),
                       ),
@@ -186,7 +185,7 @@ class _DownloadResolutionSheetState extends ConsumerState<DownloadResolutionShee
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white54),
+                  icon: Icon(Icons.close, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -296,7 +295,7 @@ class _DownloadResolutionSheetState extends ConsumerState<DownloadResolutionShee
                   final isRecommended = source.quality.contains('1080') || (index == 0 && !_bundle!.sources.any((s) => s.quality.contains('1080')));
 
                   return Material(
-                    color: AppTheme.darkSurfaceVariant,
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(14),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
@@ -357,8 +356,8 @@ class _DownloadResolutionSheetState extends ConsumerState<DownloadResolutionShee
                                   const SizedBox(height: 2),
                                   Text(
                                     source.serverName,
-                                    style: const TextStyle(
-                                      color: AppTheme.textMuted,
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       fontSize: 12,
                                     ),
                                   ),

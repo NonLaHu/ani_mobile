@@ -65,7 +65,6 @@ class DownloadsScreen extends ConsumerWidget {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.darkSurface,
         title: const Text('Delete Download'),
         content: Text(
           'Are you sure you want to delete ${diskFile.animeTitle} Episode ${diskFile.episodeNumber} (${diskFile.formattedSize}) from device storage?',
@@ -73,7 +72,10 @@ class DownloadsScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
@@ -84,7 +86,7 @@ class DownloadsScreen extends ConsumerWidget {
                 const SnackBar(content: Text('Video file deleted.')),
               );
             },
-            child: const Text('Delete'),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

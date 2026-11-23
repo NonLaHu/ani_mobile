@@ -23,7 +23,6 @@ class QualitySelectorSheet extends StatelessWidget {
   }) {
     return showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.darkSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -55,17 +54,17 @@ class QualitySelectorSheet extends StatelessWidget {
                     size: 20,
                   ),
                   const SizedBox(width: 10),
-                  const Text(
+                  Text(
                     'Select Quality & Server',
                     style: TextStyle(
-                      color: AppTheme.textPrimary,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close, color: AppTheme.textMuted),
+                    icon: Icon(Icons.close, color: Theme.of(context).colorScheme.onSurfaceVariant),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
@@ -75,12 +74,12 @@ class QualitySelectorSheet extends StatelessWidget {
 
             // Source list
             if (sources.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(24),
+              Padding(
+                padding: const EdgeInsets.all(24),
                 child: Center(
                   child: Text(
                     'No alternative video sources found',
-                    style: TextStyle(color: AppTheme.textMuted),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ),
               )
@@ -99,14 +98,14 @@ class QualitySelectorSheet extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? AppTheme.primaryPurple.withOpacity(0.2)
-                            : AppTheme.darkSurfaceVariant,
+                            : Theme.of(context).colorScheme.surfaceContainerHigh,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         source.isHls ? Icons.stream_rounded : Icons.hd_rounded,
                         color: isSelected
                             ? AppTheme.primaryPurpleLight
-                            : AppTheme.textMuted,
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                         size: 20,
                       ),
                     ),
@@ -115,7 +114,7 @@ class QualitySelectorSheet extends StatelessWidget {
                       style: TextStyle(
                         color: isSelected
                             ? AppTheme.primaryPurpleLight
-                            : AppTheme.textPrimary,
+                            : Theme.of(context).colorScheme.onSurface,
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.w500,
                         fontSize: 15,
@@ -126,7 +125,7 @@ class QualitySelectorSheet extends StatelessWidget {
                       style: TextStyle(
                         color: isSelected
                             ? AppTheme.accentCyan.withOpacity(0.8)
-                            : AppTheme.textMuted,
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                       ),
                     ),

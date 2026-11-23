@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/anime.dart';
@@ -28,6 +29,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   bool _isGridView = false;
   bool _isLaunchingEpisode = false;
   String? _loadingEpisodeId;
+  int _currentPage = 1;
+  static const int _episodesPerPage = 30;
 
   void _playEpisode(
     BuildContext context, {
@@ -87,17 +90,21 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           showDialog<void>(
             context: context,
             builder: (ctx) => AlertDialog(
-              backgroundColor: AppTheme.darkSurface,
+              backgroundColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.info_outline_rounded, color: Colors.amberAccent),
-                  SizedBox(width: 8),
-                  Text('Episode Unavailable'),
+                  const Icon(Icons.info_outline_rounded, color: Colors.amberAccent),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Episode Unavailable',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                  ),
                 ],
               ),
               content: Text(
                 'Episode ${episode.number} cannot be played:\n\n$errorMsg\n\nThis episode may not have aired yet or has not been uploaded to streaming servers.',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               actions: [
                 TextButton(
@@ -131,7 +138,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   void _showDownloadOptions(BuildContext context, Episode ep) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppTheme.darkSurface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -162,6 +169,243 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPaginationBar({
+    required int totalPages,
+    required int currentPage,
+    required int totalEpisodes,
+  }) {
+    if (totalEpisodes <= _episodesPerPage || totalPages <= 1) {
+      return const SizedBox.shrink();
+    }
+
+    final surfaceColor = Theme.of(context).colorScheme.surfaceContainerHigh;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Previous Button
+            IconButton(
+              icon: const Icon(Icons.chevron_left_rounded),
+              iconSize: 22,
+              tooltip: 'Previous Page',
+              onPressed: currentPage > 1
+                  ? () => setState(() => _currentPage = currentPage - 1)
+                  : null,
+            ),
+
+            // Page 1
+            _buildPageNumberButton(
+              page: 1,
+              isSelected: currentPage == 1,
+              onTap: () => setState(() => _currentPage = 1),
+            ),
+
+            // Page 2 (if available)
+            if (totalPages >= 2) ...[
+              const SizedBox(width: 4),
+              _buildPageNumberButton(
+                page: 2,
+                isSelected: currentPage == 2,
+                onTap: () => setState(() => _currentPage = 2),
+              ),
+            ],
+
+            // Middle: Interactive Jump to Page button
+            const SizedBox(width: 4),
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _showJumpToPageDialog(totalPages, totalEpisodes),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: (currentPage > 2 && currentPage < totalPages)
+                      ? AppTheme.primaryPurple.withOpacity(0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: (currentPage > 2 && currentPage < totalPages)
+                        ? AppTheme.primaryPurple
+                        : Theme.of(context).colorScheme.outline.withOpacity(0.35),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      (currentPage > 2 && currentPage < totalPages)
+                          ? 'Page $currentPage'
+                          : '...',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: (currentPage > 2 && currentPage < totalPages)
+                            ? AppTheme.accentCyan
+                            : Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    const Icon(Icons.arrow_drop_down_rounded, size: 18),
+                  ],
+                ),
+              ),
+            ),
+
+            // Last Page (if totalPages >= 3)
+            if (totalPages >= 3) ...[
+              const SizedBox(width: 4),
+              _buildPageNumberButton(
+                page: totalPages,
+                isSelected: currentPage == totalPages,
+                onTap: () => setState(() => _currentPage = totalPages),
+              ),
+            ],
+
+            // Next Button
+            IconButton(
+              icon: const Icon(Icons.chevron_right_rounded),
+              iconSize: 22,
+              tooltip: 'Next Page',
+              onPressed: currentPage < totalPages
+                  ? () => setState(() => _currentPage = currentPage + 1)
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageNumberButton({
+    required int page,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primaryPurple : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.primaryPurple
+                : Theme.of(context).colorScheme.outline.withOpacity(0.3),
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '$page',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.bold,
+            color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showJumpToPageDialog(int totalPages, int totalEpisodes) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Jump to Page (1 – $totalPages)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.45,
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: totalPages,
+                    itemBuilder: (context, i) {
+                      final pageNum = i + 1;
+                      final startEp = (pageNum - 1) * _episodesPerPage + 1;
+                      final endEp = math.min(pageNum * _episodesPerPage, totalEpisodes);
+                      final isSelected = pageNum == _currentPage;
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: isSelected
+                              ? AppTheme.primaryPurple
+                              : Theme.of(context).colorScheme.surfaceContainerHigh,
+                          foregroundColor: isSelected
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.onSurface,
+                          child: Text(
+                            '$pageNum',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        title: Text(
+                          'Page $pageNum: Episodes $startEp – $endEp',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle_rounded, color: AppTheme.accentCyan)
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _currentPage = pageNum;
+                          });
+                          Navigator.of(ctx).pop();
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -506,13 +750,28 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Episodes',
-                            style: TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Episodes',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (episodesAsync.valueOrNull != null &&
+                                  episodesAsync.valueOrNull!.length > _episodesPerPage)
+                                Text(
+                                  'Showing ${((_currentPage - 1) * _episodesPerPage + 1).clamp(1, episodesAsync.valueOrNull!.length)}–${math.min(_currentPage * _episodesPerPage, episodesAsync.valueOrNull!.length)} of ${episodesAsync.valueOrNull!.length}',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                            ],
                           ),
 
                           Row(
@@ -525,7 +784,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                   backgroundColor: WidgetStateProperty.resolveWith(
                                     (states) => states.contains(WidgetState.selected)
                                         ? AppTheme.primaryPurple
-                                        : AppTheme.darkSurfaceVariant,
+                                        : Theme.of(context).colorScheme.surfaceContainerHigh,
                                   ),
                                 ),
                                 segments: const [
@@ -540,6 +799,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                 ],
                                 selected: {isDub},
                                 onSelectionChanged: (newSelection) {
+                                  setState(() => _currentPage = 1);
                                   ref
                                       .read(isDubSelectedProvider(widget.animeId).notifier)
                                       .state = newSelection.first;
@@ -554,7 +814,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                       ? Icons.arrow_downward_rounded
                                       : Icons.arrow_upward_rounded,
                                   size: 20,
-                                  color: AppTheme.textSecondary,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
                                 tooltip: isAscending ? 'Sort 1 -> N' : 'Sort N -> 1',
                                 onPressed: () {
@@ -568,7 +828,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                 icon: Icon(
                                   _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
                                   size: 20,
-                                  color: AppTheme.textSecondary,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
                                 tooltip: _isGridView ? 'List View' : 'Grid View',
                                 onPressed: () => setState(() => _isGridView = !_isGridView),
@@ -619,8 +879,14 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                       ? rawEpisodes
                       : rawEpisodes.reversed.toList();
 
-                  if (_isGridView) {
-                    // Grid View: compact episode buttons
+                  final totalEpisodes = episodes.length;
+                  final totalPages = (totalEpisodes / _episodesPerPage).ceil();
+                  final safePage = _currentPage.clamp(1, math.max(1, totalPages)).toInt();
+                  final startIndex = (safePage - 1) * _episodesPerPage;
+                  final endIndex = math.min(startIndex + _episodesPerPage, totalEpisodes).toInt();
+                  final pagedEpisodes = episodes.sublist(startIndex, endIndex);
+
+                  Widget buildGridView() {
                     return SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverGrid(
@@ -632,7 +898,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
-                            final ep = episodes[index];
+                            final ep = pagedEpisodes[index];
                             final isWatched = history != null &&
                                 history.episode.number == ep.number &&
                                 history.isCompleted;
@@ -670,14 +936,14 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                 decoration: BoxDecoration(
                                   color: isWatched
                                       ? AppTheme.primaryPurple.withOpacity(0.3)
-                                      : AppTheme.darkSurfaceVariant,
+                                      : Theme.of(context).colorScheme.surfaceContainerHigh,
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
                                     color: isDl
                                         ? Colors.greenAccent
                                         : isWatched
                                             ? AppTheme.accentCyan
-                                            : const Color(0xFF2C3247),
+                                            : Theme.of(context).colorScheme.outline.withOpacity(0.3),
                                   ),
                                 ),
                                 child: Stack(
@@ -706,7 +972,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                               ? Colors.greenAccent
                                               : isWatched
                                                   ? AppTheme.accentCyan
-                                                  : Colors.white,
+                                                  : Theme.of(context).colorScheme.onSurface,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14,
                                         ),
@@ -736,270 +1002,299 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                               ),
                             );
                           },
-                          childCount: episodes.length,
+                          childCount: pagedEpisodes.length,
                         ),
                       ),
                     );
                   }
 
-                  // List View: Rich episode cards
-                  return SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final ep = episodes[index];
-                          final isCurrentlyWatched = history != null &&
-                              history.episode.number == ep.number;
+                  Widget buildListView() {
+                    return SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final ep = pagedEpisodes[index];
+                            final isCurrentlyWatched = history != null &&
+                                history.episode.number == ep.number;
 
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            child: Material(
-                              color: AppTheme.darkSurface,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: isCurrentlyWatched
-                                      ? AppTheme.primaryPurpleLight.withOpacity(0.5)
-                                      : const Color(0xFF222638),
-                                  width: 1,
-                                ),
-                              ),
-                              clipBehavior: Clip.antiAlias,
-                              child: ListTile(
-                                mouseCursor: SystemMouseCursors.click,
-                                hoverColor: AppTheme.primaryPurple.withOpacity(0.08),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 6,
-                                ),
-                              leading: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.darkSurfaceVariant,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${ep.number}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              child: Material(
+                                color: Theme.of(context).colorScheme.surface,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(
+                                    color: isCurrentlyWatched
+                                        ? AppTheme.primaryPurpleLight.withOpacity(0.5)
+                                        : Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                                    width: 1,
                                   ),
                                 ),
-                              ),
-                              title: Text(
-                                ep.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              subtitle: Row(
-                                children: [
-                                  Text(
-                                    ep.isDub ? 'English Dub' : 'Japanese Sub',
-                                    style: const TextStyle(
-                                      color: AppTheme.textMuted,
-                                      fontSize: 11.5,
-                                    ),
+                                clipBehavior: Clip.antiAlias,
+                                child: ListTile(
+                                  mouseCursor: SystemMouseCursors.click,
+                                  hoverColor: AppTheme.primaryPurple.withOpacity(0.08),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 6,
                                   ),
-                                  if (ep.isFiller) ...[
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      '• Filler',
-                                      style: TextStyle(
-                                        color: Colors.orangeAccent,
-                                        fontSize: 11,
+                                  leading: Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${ep.number}',
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.onSurface,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
                                       ),
                                     ),
-                                  ],
-                                  if (isCurrentlyWatched) ...[
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '• Resume ${history.formattedProgress.split(' / ').first}',
-                                      style: const TextStyle(
-                                        color: AppTheme.accentCyan,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Favorite Episode Button
-                                  Consumer(
-                                    builder: (context, ref, child) {
-                                      final isEpFav = ref.watch(favoritesProvider).isEpisodeFav(ep.id);
-                                      return IconButton(
-                                        icon: Icon(
-                                          isEpFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                                          color: isEpFav ? Colors.redAccent : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
-                                          size: 20,
-                                        ),
-                                        tooltip: isEpFav ? 'Unfavorite Episode' : 'Favorite Episode',
-                                        onPressed: () {
-                                          ref.read(favoritesProvider.notifier).toggleEpisodeFavorite(anime, ep);
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                isEpFav
-                                                    ? 'Removed Episode ${ep.number} from favorites'
-                                                    : 'Favorited Episode ${ep.number}',
-                                              ),
-                                              duration: const Duration(seconds: 1),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
                                   ),
-
-                                  // Download Button & Status
-                                  Builder(
-                                    builder: (context) {
-                                      final isDl = ref.watch(downloadProvider.notifier).isDownloaded(ep.id);
-                                      final isDling = ref.watch(downloadProvider.notifier).isDownloading(ep.id);
-                                      final dlTask = ref.watch(downloadProvider)[ep.id];
-
-                                      if (isDling && dlTask != null) {
-                                        return Padding(
-                                          padding: const EdgeInsets.only(right: 6),
-                                          child: SizedBox(
-                                            width: 28,
-                                            height: 28,
-                                            child: Stack(
-                                              alignment: Alignment.center,
-                                              children: [
-                                                CircularProgressIndicator(
-                                                  value: dlTask.progress > 0 ? dlTask.progress : null,
-                                                  strokeWidth: 2.5,
-                                                  color: AppTheme.accentCyan,
-                                                ),
-                                                Text(
-                                                  '${(dlTask.progress * 100).toInt()}%',
-                                                  style: const TextStyle(fontSize: 8, color: Colors.white70),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }
-
-                                      if (isDl) {
-                                        return IconButton(
-                                          icon: const Icon(
-                                            Icons.check_circle_rounded,
-                                            color: Colors.greenAccent,
-                                            size: 24,
-                                          ),
-                                          tooltip: 'Downloaded (Offline Ready)',
-                                          onPressed: () {
-                                            _showDownloadOptions(context, ep);
-                                          },
-                                        );
-                                      }
-
-                                      return IconButton(
-                                        icon: const Icon(
-                                          Icons.download_for_offline_outlined,
-                                          color: Colors.white54,
-                                          size: 22,
+                                  title: Text(
+                                    ep.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  subtitle: Row(
+                                    children: [
+                                      Text(
+                                        ep.isDub ? 'English Dub' : 'Japanese Sub',
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          fontSize: 11.5,
                                         ),
-                                        tooltip: 'Download Episode',
-                                        onPressed: () {
-                                          DownloadResolutionSheet.show(
-                                            context,
-                                            anime: anime,
-                                            episode: ep,
-                                            onQualitySelected: (chosenSource, subUrl) {
-                                              ref.read(downloadProvider.notifier).startDownload(
-                                                    anime: anime,
-                                                    episode: ep,
-                                                    preselectedSource: chosenSource,
-                                                    preselectedSubtitleUrl: subUrl,
-                                                  );
+                                      ),
+                                      if (ep.isFiller) ...[
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          '• Filler',
+                                          style: TextStyle(
+                                            color: Colors.orangeAccent,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                      if (isCurrentlyWatched) ...[
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '• Resume ${history.formattedProgress.split(' / ').first}',
+                                          style: const TextStyle(
+                                            color: AppTheme.accentCyan,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Favorite Episode Button
+                                      Consumer(
+                                        builder: (context, ref, child) {
+                                          final isEpFav = ref.watch(favoritesProvider).isEpisodeFav(ep.id);
+                                          return IconButton(
+                                            icon: Icon(
+                                              isEpFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                              color: isEpFav ? Colors.redAccent : Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                                              size: 20,
+                                            ),
+                                            tooltip: isEpFav ? 'Unfavorite Episode' : 'Favorite Episode',
+                                            onPressed: () {
+                                              ref.read(favoritesProvider.notifier).toggleEpisodeFavorite(anime, ep);
                                               ScaffoldMessenger.of(context).showSnackBar(
                                                 SnackBar(
-                                                  content: Row(
-                                                    children: [
-                                                      const Icon(Icons.downloading_rounded, color: AppTheme.accentCyan, size: 20),
-                                                      const SizedBox(width: 10),
-                                                      Expanded(
-                                                        child: Text('Downloading Episode ${ep.number} (${chosenSource.quality}) with subtitles...'),
-                                                      ),
-                                                    ],
+                                                  content: Text(
+                                                    isEpFav
+                                                        ? 'Removed Episode ${ep.number} from favorites'
+                                                        : 'Favorited Episode ${ep.number}',
                                                   ),
-                                                  backgroundColor: const Color(0xFF2C243B),
-                                                  behavior: SnackBarBehavior.floating,
-                                                  duration: const Duration(seconds: 3),
+                                                  duration: const Duration(seconds: 1),
                                                 ),
                                               );
                                             },
                                           );
                                         },
-                                      );
-                                    },
-                                  ),
+                                      ),
 
-                                  // Play button or loading spinner
-                                  if (_loadingEpisodeId == ep.id)
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(horizontal: 6),
-                                      child: LoadingCycle(
-                                        size: 24,
-                                        strokeWidth: 2.5,
-                                        showCore: false,
+                                      // Download Button & Status
+                                      Builder(
+                                        builder: (context) {
+                                          final isDl = ref.watch(downloadProvider.notifier).isDownloaded(ep.id);
+                                          final isDling = ref.watch(downloadProvider.notifier).isDownloading(ep.id);
+                                          final dlTask = ref.watch(downloadProvider)[ep.id];
+
+                                          if (isDling && dlTask != null) {
+                                            return Padding(
+                                              padding: const EdgeInsets.only(right: 6),
+                                              child: SizedBox(
+                                                width: 28,
+                                                height: 28,
+                                                child: Stack(
+                                                  alignment: Alignment.center,
+                                                  children: [
+                                                    CircularProgressIndicator(
+                                                      value: dlTask.progress > 0 ? dlTask.progress : null,
+                                                      strokeWidth: 2.5,
+                                                      color: AppTheme.accentCyan,
+                                                    ),
+                                                    Text(
+                                                      '${(dlTask.progress * 100).toInt()}%',
+                                                      style: const TextStyle(fontSize: 8, color: Colors.white70),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }
+
+                                          if (isDl) {
+                                            return IconButton(
+                                              icon: const Icon(
+                                                Icons.check_circle_rounded,
+                                                color: Colors.greenAccent,
+                                                size: 24,
+                                              ),
+                                              tooltip: 'Downloaded (Offline Ready)',
+                                              onPressed: () {
+                                                _showDownloadOptions(context, ep);
+                                              },
+                                            );
+                                          }
+
+                                          return IconButton(
+                                            icon: Icon(
+                                              Icons.download_for_offline_outlined,
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                              size: 22,
+                                            ),
+                                            tooltip: 'Download Episode',
+                                            onPressed: () {
+                                              DownloadResolutionSheet.show(
+                                                context,
+                                                anime: anime,
+                                                episode: ep,
+                                                onQualitySelected: (chosenSource, subUrl) {
+                                                  ref.read(downloadProvider.notifier).startDownload(
+                                                        anime: anime,
+                                                        episode: ep,
+                                                        preselectedSource: chosenSource,
+                                                        preselectedSubtitleUrl: subUrl,
+                                                      );
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Row(
+                                                        children: [
+                                                          const Icon(Icons.downloading_rounded, color: AppTheme.accentCyan, size: 20),
+                                                          const SizedBox(width: 10),
+                                                          Expanded(
+                                                            child: Text(
+                                                              'Downloading Episode ${ep.number} (${chosenSource.quality}) with subtitles...',
+                                                              style: const TextStyle(color: Colors.white),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      backgroundColor: const Color(0xFF2C243B),
+                                                      behavior: SnackBarBehavior.floating,
+                                                      duration: const Duration(seconds: 3),
+                                                    ),
+                                                  );
+                                                },
+                                              );
+                                            },
+                                          );
+                                        },
                                       ),
-                                    )
-                                  else
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.play_circle_fill_rounded,
-                                        color: AppTheme.primaryPurple,
-                                        size: 32,
-                                      ),
-                                      onPressed: () {
-                                        _playEpisode(
-                                          context,
-                                          anime: anime,
-                                          episode: ep,
-                                          playlist: episodes,
-                                          resumePosition: isCurrentlyWatched
-                                              ? history.positionSeconds
-                                              : null,
-                                        );
-                                      },
-                                    ),
-                                ],
+
+                                      // Play button or loading spinner
+                                      if (_loadingEpisodeId == ep.id)
+                                        const Padding(
+                                          padding: EdgeInsets.symmetric(horizontal: 6),
+                                          child: LoadingCycle(
+                                            size: 24,
+                                            strokeWidth: 2.5,
+                                            showCore: false,
+                                          ),
+                                        )
+                                      else
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.play_circle_fill_rounded,
+                                            color: AppTheme.primaryPurple,
+                                            size: 32,
+                                          ),
+                                          onPressed: () {
+                                            _playEpisode(
+                                              context,
+                                              anime: anime,
+                                              episode: ep,
+                                              playlist: episodes,
+                                              resumePosition: isCurrentlyWatched
+                                                  ? history.positionSeconds
+                                                  : null,
+                                            );
+                                          },
+                                        ),
+                                    ],
+                                  ),
+                                  onTap: () {
+                                    _playEpisode(
+                                      context,
+                                      anime: anime,
+                                      episode: ep,
+                                      playlist: episodes,
+                                      resumePosition: isCurrentlyWatched
+                                          ? history.positionSeconds
+                                          : null,
+                                    );
+                                  },
+                                ),
                               ),
-                              onTap: () {
-                                _playEpisode(
-                                  context,
-                                  anime: anime,
-                                  episode: ep,
-                                  playlist: episodes,
-                                  resumePosition: isCurrentlyWatched
-                                      ? history.positionSeconds
-                                      : null,
-                                );
-                              },
-                            ),
-                          ),
-                        );
-                        },
-                        childCount: episodes.length,
+                            );
+                          },
+                          childCount: pagedEpisodes.length,
+                        ),
                       ),
-                    ),
+                    );
+                  }
+
+                  return SliverMainAxisGroup(
+                    slivers: [
+                      if (totalEpisodes > _episodesPerPage)
+                        SliverToBoxAdapter(
+                          child: _buildPaginationBar(
+                            totalPages: totalPages,
+                            currentPage: safePage,
+                            totalEpisodes: totalEpisodes,
+                          ),
+                        ),
+                      if (_isGridView)
+                        buildGridView()
+                      else
+                        buildListView(),
+                      if (totalEpisodes > _episodesPerPage)
+                        SliverToBoxAdapter(
+                          child: _buildPaginationBar(
+                            totalPages: totalPages,
+                            currentPage: safePage,
+                            totalEpisodes: totalEpisodes,
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),

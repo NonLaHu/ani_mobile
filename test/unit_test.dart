@@ -5,6 +5,7 @@ import 'package:ani_mobile/models/episode.dart';
 import 'package:ani_mobile/models/favorite_item.dart';
 import 'package:ani_mobile/models/video_source.dart';
 import 'package:ani_mobile/models/watch_history.dart';
+import 'package:ani_mobile/providers/playback_settings_provider.dart';
 import 'package:ani_mobile/services/scraper/anime_scraper_service.dart';
 import 'package:ani_mobile/services/scraper/demo_scraper_service.dart';
 
@@ -273,6 +274,59 @@ void main() {
       expect(fromJson.animeId, equals('frieren'));
       expect(fromJson.animeTitle, equals('Frieren: Beyond Journey\'s End'));
       expect(fromJson.episode.number, equals(1));
+    });
+  });
+
+  group('PlaybackSettings & Subtitles', () {
+    test('PlaybackSettings defaults and copyWith', () {
+      const defaultSettings = PlaybackSettings();
+      expect(defaultSettings.enableHardwareAcceleration, isFalse);
+      expect(defaultSettings.subtitlesEnabled, isTrue);
+      expect(defaultSettings.subtitleFontSize, equals(22.0));
+
+      final custom = defaultSettings.copyWith(
+        enableHardwareAcceleration: true,
+        subtitlesEnabled: false,
+        subtitleFontSize: 28.0,
+      );
+      expect(custom.enableHardwareAcceleration, isTrue);
+      expect(custom.subtitlesEnabled, isFalse);
+      expect(custom.subtitleFontSize, equals(28.0));
+    });
+
+    test('Local Episode Pagination Slicing for shows > 30 episodes', () {
+      // Simulate 75 episodes (like Fullmetal Alchemist or Bleach arc)
+      final dummyEpisodes = List.generate(
+        75,
+        (i) => Episode(
+          id: 'ep-$i',
+          animeId: 'one-piece',
+          number: i + 1,
+          title: 'Episode ${i + 1}',
+        ),
+      );
+
+      const pageSize = 30;
+      final totalPages = (dummyEpisodes.length / pageSize).ceil();
+      expect(totalPages, equals(3));
+
+      // Page 1: 0..30 (Ep 1 to 30)
+      final page1 = dummyEpisodes.sublist(0, 30);
+      expect(page1.length, equals(30));
+      expect(page1.first.number, equals(1));
+      expect(page1.last.number, equals(30));
+
+      // Page 2: 30..60 (Ep 31 to 60)
+      final page2 = dummyEpisodes.sublist(30, 60);
+      expect(page2.length, equals(30));
+      expect(page2.first.number, equals(31));
+      expect(page2.last.number, equals(60));
+
+      // Page 3: 60..75 (Ep 61 to 75)
+      final page3 = dummyEpisodes.sublist(60, 75);
+      expect(page3.length, equals(15));
+      expect(page3.first.number, equals(61));
+      expect(page3.last.number, equals(75));
     });
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/download_provider.dart';
 import '../providers/playback_settings_provider.dart';
@@ -96,8 +97,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
-    final currentScraper = ref.watch(scraperTypeProvider);
     final hwAccel = ref.watch(hardwareAccelerationProvider);
+    final subsEnabled = ref.watch(subtitlesEnabledProvider);
+    final subFontSize = ref.watch(subtitleFontSizeProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -280,8 +282,118 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     value: hwAccel,
                     onChanged: (val) {
-                      ref.read(hardwareAccelerationProvider.notifier).setHardwareAcceleration(val);
+                      ref.read(playbackSettingsProvider.notifier).setHardwareAcceleration(val);
                     },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Section: Subtitles & Captions
+          _buildSectionHeader(
+            icon: Icons.subtitles_rounded,
+            title: 'Subtitles & Captions',
+            color: AppTheme.accentCyan,
+          ),
+          Card(
+            margin: const EdgeInsets.only(top: 8, bottom: 20),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Enable Subtitles by Default',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
+                    ),
+                    subtitle: Text(
+                      subsEnabled
+                          ? 'Subtitles automatically turn ON when opening video streams'
+                          : 'Subtitles stay OFF until turned on manually using the CC button in player',
+                      style: TextStyle(
+                        color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                    value: subsEnabled,
+                    onChanged: (val) {
+                      ref.read(playbackSettingsProvider.notifier).setSubtitlesEnabled(val);
+                    },
+                  ),
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Subtitle Font Size',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryPurple.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppTheme.primaryPurple.withOpacity(0.5)),
+                        ),
+                        child: Text(
+                          '${subFontSize.toInt()} pt',
+                          style: const TextStyle(
+                            color: AppTheme.primaryPurpleLight,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: AppTheme.primaryPurple,
+                      thumbColor: AppTheme.accentCyan,
+                    ),
+                    child: Slider(
+                      value: subFontSize,
+                      min: 14.0,
+                      max: 38.0,
+                      divisions: 12,
+                      label: '${subFontSize.toInt()} pt',
+                      onChanged: (val) {
+                        ref.read(playbackSettingsProvider.notifier).setSubtitleFontSize(val);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Live Subtitle Preview Container
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Preview: [Anime Subtitles Style]',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: subFontSize,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        shadows: const [
+                          Shadow(offset: Offset(-1.5, -1.5), color: Colors.black, blurRadius: 4),
+                          Shadow(offset: Offset(1.5, -1.5), color: Colors.black, blurRadius: 4),
+                          Shadow(offset: Offset(-1.5, 1.5), color: Colors.black, blurRadius: 4),
+                          Shadow(offset: Offset(1.5, 1.5), color: Colors.black, blurRadius: 4),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -307,7 +419,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Select which anime provider backend is used for searching and streaming:',
+                    'Primary anime backend provider for searching and streaming:',
                     style: TextStyle(
                       color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
                       fontSize: 12.5,
@@ -316,33 +428,78 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 10),
                   RadioListTile<ScraperType>(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('ani-mobile Engine (HiAnime / ZokoAnime)'),
+                    title: const Text('ani-mobile Engine (HiAnime / ZokoAnime)', style: TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: const Text('Mirrors ani-mobile shell scraper with full sub/dub streaming.'),
                     value: ScraperType.hianime,
-                    groupValue: currentScraper,
+                    groupValue: ScraperType.hianime,
                     onChanged: (val) {
-                      if (val != null) ref.read(scraperTypeProvider.notifier).state = val;
+                      ref.read(scraperTypeProvider.notifier).state = ScraperType.hianime;
                     },
                   ),
-                  RadioListTile<ScraperType>(
+                  const Divider(height: 16),
+                  ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Live Provider (Gogo/AllAnime)'),
-                    subtitle: const Text('Secondary public live scraper fallback.'),
-                    value: ScraperType.live,
-                    groupValue: currentScraper,
-                    onChanged: (val) {
-                      if (val != null) ref.read(scraperTypeProvider.notifier).state = val;
-                    },
+                    enabled: false,
+                    title: Row(
+                      children: [
+                        Text(
+                          'Live Provider (Gogo/AllAnime)',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                          ),
+                          child: const Text(
+                            'Coming Soon',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber),
+                          ),
+                        ),
+                      ],
+                    ),
+                    subtitle: Text(
+                      'Secondary public live scraper fallback (currently in development).',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
+                    ),
                   ),
-                  RadioListTile<ScraperType>(
+                  ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Demo Scraper (Guaranteed Test Streams)'),
-                    subtitle: const Text('Provides reliable public test streams for testing player and downloads.'),
-                    value: ScraperType.demo,
-                    groupValue: currentScraper,
-                    onChanged: (val) {
-                      if (val != null) ref.read(scraperTypeProvider.notifier).state = val;
-                    },
+                    enabled: false,
+                    title: Row(
+                      children: [
+                        Text(
+                          'Demo Scraper',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                          ),
+                          child: const Text(
+                            'Coming Soon',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber),
+                          ),
+                        ),
+                      ],
+                    ),
+                    subtitle: Text(
+                      'Provides mock test streams for offline testing (coming in future update).',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
+                    ),
                   ),
                 ],
               ),
@@ -410,13 +567,85 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       color: isDark ? AppTheme.textSecondary : AppTheme.lightTextSecondary,
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Developer & Contact',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'For questions, feedback, bug reports, or feature requests, contact on GitHub:',
+                    style: TextStyle(
+                      color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryPurple.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.code_rounded, color: AppTheme.accentCyan, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'NonLaHu',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                              Text(
+                                'github.com/NonLaHu',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                  color: AppTheme.accentCyan,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy_rounded, size: 20),
+                          tooltip: 'Copy GitHub Link',
+                          onPressed: () {
+                            Clipboard.setData(const ClipboardData(text: 'https://github.com/NonLaHu'));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Copied GitHub link (https://github.com/NonLaHu) to clipboard!'),
+                                duration: Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
                       _buildPill('libmpv Video Engine'),
-                      _buildPill('Hardware Acceleration'),
+                      _buildPill('Software Rendering (S/W)'),
                       _buildPill('FFmpeg Remuxing'),
                       _buildPill('Pure Dart HLS Fallback'),
                       _buildPill('Dual Sub/Dub'),

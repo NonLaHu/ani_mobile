@@ -37,10 +37,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String? _lastLoadedUrl;
   bool _isDisposing = false;
   Timer? _seekDebounceTimer;
+  bool _subtitlesVisible = true;
+  SubtitleTrack? _lastActiveSubtitleTrack;
 
   @override
   void initState() {
     super.initState();
+
+    _subtitlesVisible = ref.read(subtitlesEnabledProvider);
 
     // Configure system overlays and landscape orientation for immersive playback
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -128,6 +132,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _subscriptions.add(
       _player.stream.tracks.listen((tracks) {
         if (!mounted || _isDisposing) return;
+        if (!_subtitlesVisible) {
+          _player.setSubtitleTrack(SubtitleTrack.no());
+          return;
+        }
         if (_player.state.track.subtitle == SubtitleTrack.no() && tracks.subtitle.length > 1) {
           final target = tracks.subtitle.firstWhere(
             (t) => (t.language?.toLowerCase().contains('eng') ?? false) ||
@@ -138,6 +146,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           );
           if (target.id != 'no') {
+            _lastActiveSubtitleTrack = target;
             _player.setSubtitleTrack(target);
             print('Auto-enabled subtitle track: ${target.title ?? target.language ?? target.id}');
           }
@@ -222,6 +231,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     await _player.open(media, play: true);
 
+    // Apply MPV subtitle font size if supported
+    final fontSize = ref.read(subtitleFontSizeProvider);
+    try {
+      (_player.platform as dynamic)?.setProperty('sub-font-size', fontSize.toInt().toString());
+    } catch (_) {}
+
+    if (!_subtitlesVisible) {
+      await _player.setSubtitleTrack(SubtitleTrack.no());
+      return;
+    }
+
     // Auto-load external subtitle tracks if present
     final state = ref.read(playerProvider);
     final subs = state.streamBundle?.subtitles ?? [];
@@ -287,6 +307,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (_isDisposing) return;
       _player.seek(target);
     });
+  }
+
+  void _toggleSubtitles() {
+    setState(() {
+      _subtitlesVisible = !_subtitlesVisible;
+    });
+
+    if (!_subtitlesVisible) {
+      _lastActiveSubtitleTrack = _player.state.track.subtitle;
+      _player.setSubtitleTrack(SubtitleTrack.no());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Subtitles Disabled', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            duration: Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else {
+      final tracks = _player.state.tracks.subtitle;
+      final target = _lastActiveSubtitleTrack ??
+          tracks.firstWhere(
+            (t) => (t.language?.toLowerCase().contains('eng') ?? false) ||
+                (t.title?.toLowerCase().contains('eng') ?? false),
+            orElse: () => tracks.firstWhere(
+              (t) => t.id != 'no',
+              orElse: () => SubtitleTrack.auto(),
+            ),
+          );
+      _player.setSubtitleTrack(target);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Subtitles Enabled (${target.title ?? target.language ?? "Active"})',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            duration: const Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -434,12 +498,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 child: Video(
                   controller: _videoController,
                   controls: (videoState) => const SizedBox.shrink(),
-                  subtitleViewConfiguration: const SubtitleViewConfiguration(
+                  subtitleViewConfiguration: SubtitleViewConfiguration(
+                    visible: _subtitlesVisible,
                     style: TextStyle(
-                      fontSize: 22.0,
+                      fontSize: ref.watch(subtitleFontSizeProvider),
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      shadows: [
+                      shadows: const [
                         Shadow(offset: Offset(-1.5, -1.5), color: Colors.black, blurRadius: 4),
                         Shadow(offset: Offset(1.5, -1.5), color: Colors.black, blurRadius: 4),
                         Shadow(offset: Offset(-1.5, 1.5), color: Colors.black, blurRadius: 4),
@@ -447,7 +512,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ],
                     ),
                     textAlign: TextAlign.center,
-                    padding: EdgeInsets.all(24.0),
+                    padding: const EdgeInsets.all(24.0),
                   ),
                 ),
               ),
@@ -476,6 +541,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               // Custom Overlay Controls
               CustomVideoControls(
                 playerState: state,
+                subtitlesEnabled: _subtitlesVisible,
+                onToggleSubtitles: _toggleSubtitles,
                 onTogglePlayPause: () {
                   _player.playOrPause();
                 },
