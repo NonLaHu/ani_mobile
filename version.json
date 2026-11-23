@@ -1,8 +1,8 @@
 {
-  "latest_version": "1.0.0",
+  "latest_version": "1.0.1",
   "min_supported_version": "1.0.0",
-  "release_title": "v1.0.0 - Initial Release",
-  "release_notes": "• Hardware & Software MPV streaming player\n• HLS multi-resolution video selector and offline downloads\n• Subtitle toggle and custom font size slider\n• Gestures for volume and seeking\n• External player support (VLC, MPV)\n• Built-in real-time GitHub version checking",
-  "download_url": "https://github.com/NonLaHu/ani_mobile/releases",
-  "apk_url": "https://github.com/NonLaHu/ani_mobile/releases/latest"
+  "release_title": "v1.0.1 - Gestures, External Player & Performance Improvements",
+  "release_notes": "• Volume swipe gesture: drag up/down on video player to adjust volume\n• External video player support: open streams directly in VLC, MX Player, or MPV\n• VPN troubleshooting hints for geo-restricted streams\n• Fixed resume status placement & download page light theme contrast\n• Dual SUB/DUB badge logic & automated GitHub release pipeline",
+  "download_url": "https://github.com/NonLaHu/ani_mobile/releases/tag/v1.0.1",
+  "apk_url": "https://github.com/NonLaHu/ani_mobile/releases/download/v1.0.1/ani_mobile-v1.0.1.apk"
 }
