@@ -317,15 +317,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!_subtitlesVisible) {
       _lastActiveSubtitleTrack = _player.state.track.subtitle;
       _player.setSubtitleTrack(SubtitleTrack.no());
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Subtitles Disabled', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            duration: Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     } else {
       final tracks = _player.state.tracks.subtitle;
       final target = _lastActiveSubtitleTrack ??
@@ -338,18 +329,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           );
       _player.setSubtitleTrack(target);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Subtitles Enabled (${target.title ?? target.language ?? "Active"})',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-            duration: const Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     }
   }
 

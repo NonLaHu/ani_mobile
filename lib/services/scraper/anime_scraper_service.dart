@@ -13,9 +13,9 @@ class EpisodeNotAvailableException implements Exception {
 }
 
 /// Abstract service interface defining the core contract for anime scrapers
-/// inspired by the command-line utility `ani-mobile`.
+/// in ani-mobile.
 abstract class AnimeScraperService {
-  /// Scraper identifier name (e.g., 'DemoScraper', 'GogoAnime', 'AllAnime')
+  /// Scraper identifier name (e.g., 'Primary Provider', 'Secondary Provider')
   String get name;
 
   /// Searches for anime by query title or keyword

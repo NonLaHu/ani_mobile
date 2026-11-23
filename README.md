@@ -1,22 +1,22 @@
 # ani-mobile 🎬
 
-A cross-platform Flutter anime streaming application inspired by the functionality, speed, and philosophy of **`ani-mobile`**. 
+A cross-platform Flutter anime streaming and downloading application.
 
-`ani-mobile` allows anime enthusiasts to search for titles, select episodes, switch between subbed and dubbed audio, and stream high-quality video directly inside the app with custom on-screen player controls, automated fallback recovery, and watch history tracking.
+`ani-mobile` allows anime enthusiasts to search for titles, select episodes, switch between subbed and dubbed audio, and stream high-quality video directly inside the app with custom on-screen player controls, automated fallback recovery, offline downloads, and watch history tracking.
 
 ---
 
 ## 🌟 Key Features
 
-- **Inspired by ani-mobile**: Minimalist, fast, and media-focused workflow bringing terminal-grade speed into a modern GUI.
+- **Fast & Clean UX**: Minimalist, fast, and media-focused workflow in a modern GUI.
 - **Hardware-Accelerated MPV Playback**: Powered by `media_kit` (using `libmpv` under the hood), supporting high-performance HLS multi-bitrate streaming (`.m3u8`) and direct MP4 playback.
 - **Custom HTTP Header Injection**: Native injection of required `Referer`, `User-Agent`, and `Origin` headers into both `Dio` HTTP network requests and `media_kit` `Media` streaming instances to prevent CDN 403 Forbidden errors.
 - **Automatic Stream Fallback & Error Recovery**: If a video source link fails, times out, or is blocked, the player automatically catches the error and falls back to the next available quality or backup server without interrupting playback.
-- **Ani-cli Style Quick Skip Intro (+85s)**: One-tap button to instantly leap past anime opening themes (defaulting to the standard 85-second anime opening window or custom scraped timestamps).
+- **Quick Skip Intro (+85s)**: One-tap button to instantly leap past anime opening themes (defaulting to the standard 85-second anime opening window or custom scraped timestamps).
 - **Sub / Dub Catalog Switching**: Quick toggle between Japanese Subtitled and English Dubbed episode releases.
 - **Watch History & Progress Resume**: Persists playback position and completed episodes locally using `shared_preferences` with a "Continue Watching" carousel on the home screen.
 - **Modern Dark-Mode Material 3 UI**: Clean OLED-friendly obsidian & slate theme with electric violet and cyan accents tailored for late-night viewing.
-- **Dual Engine Architecture**: Includes a high-stability **Demo Scraper** (with guaranteed working multi-bitrate streams) and a production **Live Scraper** modeled on `ani-mobile`'s Gogo/AllAnime scraping logic.
+- **Multi-Provider Architecture**: Modular scraper architecture supporting primary streaming providers, fallback providers, and test providers.
 
 ---
 
@@ -33,29 +33,34 @@ lib/
 │   ├── video_source.dart              # Stream URLs, qualities, HTTP headers, & bundles
 │   └── watch_history.dart             # Resume timestamps & playback progress
 ├── services/
+│   ├── download/                      # HLS & direct video download engine
 │   └── scraper/
 │       ├── anime_scraper_service.dart # Abstract scraper interface
 │       ├── base_scraper.dart          # Dio networking, regex extraction, & HTML helpers
-│       ├── demo_scraper_service.dart  # Stable demo scraper with multi-quality test streams
-│       ├── live_scraper_service.dart  # Live scraper based on ani-mobile architecture
+│       ├── demo_scraper_service.dart  # Provider 3 test streams
+│       ├── hianime_scraper_service.dart # Primary provider engine
+│       ├── live_scraper_service.dart  # Secondary provider engine
 │       └── scraper_factory.dart       # Factory for toggling scraper engines
 ├── providers/
 │   ├── scraper_provider.dart          # Scraper engine selector provider
 │   ├── search_provider.dart           # Query state, search results, & search history
 │   ├── anime_details_provider.dart    # Anime details, sub/dub toggle, & episode lists
 │   ├── player_provider.dart           # Active episode, stream sources, & fallback logic
+│   ├── download_provider.dart         # Download state, tracking, & storage persistence
 │   └── watch_history_provider.dart    # SharedPreferences watch history persistence
 ├── screens/
 │   ├── home_screen.dart               # Search bar, engine switcher, continue watching, grid
 │   ├── details_screen.dart            # Hero banner, synopsis, sub/dub toggle, episode list/grid
-│   └── player_screen.dart             # Fullscreen media_kit video player with custom controls
+│   ├── player_screen.dart             # Fullscreen media_kit video player with custom controls
+│   ├── downloads_screen.dart          # Offline downloaded & downloading media manager
+│   └── settings_screen.dart           # Theme, player rendering, subtitle & storage settings
 ├── widgets/
 │   ├── anime_card.dart                # Responsive anime poster card with badges
 │   ├── history_card.dart              # Continue watching card with progress indicator
 │   ├── quality_selector_sheet.dart    # Modal sheet for switching stream quality & servers
 │   └── custom_video_controls.dart     # Seeker, play/pause, +/-10s, next/prev, skip intro
 └── theme/
-    └── app_theme.dart                 # Dark-mode Material 3 theme palette & styling
+    └── app_theme.dart                 # Dark & light Material 3 theme palette & styling
 ```
 
 ---
@@ -90,7 +95,7 @@ sudo pacman -S mpv gtk3
 ```
 
 ### 🤖 Android
-1. Set `minSdkVersion 21` in `android/app/build.gradle`.
+1. Set `minSdkVersion 21` in `android/app/build.gradle.kts`.
 2. Ensure permissions and hardware acceleration are declared in `android/app/src/main/AndroidManifest.xml`:
    ```xml
    <uses-permission android:name="android.permission.INTERNET" />
@@ -131,7 +136,7 @@ final headers = buildHeaders(
 // Native libmpv header injection
 final media = Media(
   source.url,
-  httpHeaders: source.headers, // e.g. {'Referer': 'https://megacloud.tv/', 'User-Agent': '...'}
+  httpHeaders: source.headers,
   start: startPosition > Duration.zero ? startPosition : null,
 );
 
@@ -142,7 +147,7 @@ _player.open(media, play: true);
 
 ## 🔌 How to Plug in Custom Scraping Endpoints & Parsing Rules
 
-To add a new anime provider (e.g. AllAnime, Consumet, AnimePahe, or a private scraper API):
+To add a new anime provider (e.g. a custom API or web scraper):
 
 1. **Implement `AnimeScraperService`**:
    Create a new class in `lib/services/scraper/my_custom_scraper.dart`:
@@ -220,4 +225,4 @@ To add a new anime provider (e.g. AllAnime, Consumet, AnimePahe, or a private sc
 ---
 
 ## 📜 License
-Inspired by the open-source spirit of `ani-mobile`. Licensed under the MIT License.
+Licensed under the MIT License.

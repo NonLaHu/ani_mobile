@@ -48,8 +48,18 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     try {
       // Check if episode is downloaded locally for offline instant playback
       final downloadNotifier = ref.read(downloadProvider.notifier);
-      if (downloadNotifier.isDownloaded(episode.id)) {
-        final task = downloadNotifier.getTask(episode.id);
+      if (downloadNotifier.isDownloaded(
+        episode.id,
+        animeTitle: anime.title,
+        episodeNumber: episode.number,
+        isDub: episode.isDub,
+      )) {
+        final task = downloadNotifier.getTask(
+          episode.id,
+          animeTitle: anime.title,
+          episodeNumber: episode.number,
+          isDub: episode.isDub,
+        );
         if (task != null && task.filePath != null) {
           final offlineSource = VideoSource(
             url: task.filePath!,
@@ -902,7 +912,12 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                             final isWatched = history != null &&
                                 history.episode.number == ep.number &&
                                 history.isCompleted;
-                            final isDl = ref.watch(downloadProvider.notifier).isDownloaded(ep.id);
+                            final isDl = ref.watch(downloadProvider.notifier).isDownloaded(
+                                  ep.id,
+                                  animeTitle: anime.title,
+                                  episodeNumber: ep.number,
+                                  isDub: ep.isDub,
+                                );
                             final isDling = ref.watch(downloadProvider.notifier).isDownloading(ep.id);
                             final isEpFav = ref.watch(favoritesProvider).isEpisodeFav(ep.id);
                             final isLoading = _loadingEpisodeId == ep.id;
@@ -1133,7 +1148,12 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                       // Download Button & Status
                                       Builder(
                                         builder: (context) {
-                                          final isDl = ref.watch(downloadProvider.notifier).isDownloaded(ep.id);
+                                          final isDl = ref.watch(downloadProvider.notifier).isDownloaded(
+                                  ep.id,
+                                  animeTitle: anime.title,
+                                  episodeNumber: ep.number,
+                                  isDub: ep.isDub,
+                                );
                                           final isDling = ref.watch(downloadProvider.notifier).isDownloading(ep.id);
                                           final dlTask = ref.watch(downloadProvider)[ep.id];
 

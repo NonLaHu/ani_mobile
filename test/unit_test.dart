@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ani_mobile/models/anime.dart';
 import 'package:ani_mobile/models/download_task.dart';
@@ -5,7 +6,9 @@ import 'package:ani_mobile/models/episode.dart';
 import 'package:ani_mobile/models/favorite_item.dart';
 import 'package:ani_mobile/models/video_source.dart';
 import 'package:ani_mobile/models/watch_history.dart';
+import 'package:ani_mobile/providers/download_provider.dart';
 import 'package:ani_mobile/providers/playback_settings_provider.dart';
+import 'package:ani_mobile/services/download/download_service.dart';
 import 'package:ani_mobile/services/scraper/anime_scraper_service.dart';
 import 'package:ani_mobile/services/scraper/demo_scraper_service.dart';
 
@@ -327,6 +330,39 @@ void main() {
       expect(page3.length, equals(15));
       expect(page3.first.number, equals(61));
       expect(page3.last.number, equals(75));
+    });
+
+    test('DownloadState isDownloaded avoids false positives for One Piece', () {
+      final diskFiles = <DiskVideoFile>[
+        DiskVideoFile(
+          file: File('/storage/ani_mobile/Jujutsu Kaisen/EP1_SUB.mp4'),
+          animeTitle: 'Jujutsu Kaisen',
+          episodeNumber: 1,
+          isDub: false,
+          sizeBytes: 1024 * 1024 * 50,
+          modifiedAt: DateTime.now(),
+        ),
+      ];
+
+      final state = DownloadState(diskFiles: diskFiles);
+
+      // Episode 1 from completely different anime should NOT match even if episode number is 1
+      final isOnePieceDownloaded = state.isDownloaded(
+        'one-piece-ep-1',
+        animeTitle: 'One Piece',
+        episodeNumber: 1,
+        isDub: false,
+      );
+      expect(isOnePieceDownloaded, isFalse);
+
+      // Episode 4 of Jujutsu Kaisen should NOT match episode 1
+      final isJJK4Downloaded = state.isDownloaded(
+        'jjk-4',
+        animeTitle: 'Jujutsu Kaisen',
+        episodeNumber: 4,
+        isDub: false,
+      );
+      expect(isJJK4Downloaded, isFalse);
     });
   });
 }

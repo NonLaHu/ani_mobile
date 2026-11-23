@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/scraper/anime_scraper_service.dart';
 import '../services/scraper/scraper_factory.dart';
 
-/// Provider for current scraper engine type (defaults to HiAnime ani-mobile engine)
+/// Provider for current scraper engine type (defaults to Primary Provider)
 final scraperTypeProvider = StateProvider<ScraperType>((ref) {
   return ScraperType.hianime;
 });

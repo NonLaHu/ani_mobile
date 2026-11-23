@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/anime.dart';
 import '../models/episode.dart';
@@ -31,6 +32,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   int _selectedTab = 0; // 0: Discover, 1: Favorites
   bool _isOpeningPlayer = false;
+  DateTime? _lastBackPressTime;
 
   @override
   void dispose() {
@@ -113,8 +115,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         synopsis: 'Favorite Episode',
       );
 
-      if (downloadNotifier.isDownloaded(episode.id)) {
-        final task = downloadNotifier.getTask(episode.id);
+      if (downloadNotifier.isDownloaded(
+        episode.id,
+        animeTitle: anime.title,
+        episodeNumber: episode.number,
+        isDub: episode.isDub,
+      )) {
+        final task = downloadNotifier.getTask(
+          episode.id,
+          animeTitle: anime.title,
+          episodeNumber: episode.number,
+          isDub: episode.isDub,
+        );
         if (task != null && task.filePath != null) {
           final offlineSource = VideoSource(
             url: task.filePath!,
@@ -152,8 +164,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final totalFavoritesCount = favoritesState.animes.length + favoritesState.episodes.length;
 
-    return Scaffold(
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        final now = DateTime.now();
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Press back again to exit',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
         title: Row(
           children: [
             Container(
@@ -229,10 +263,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(width: 5),
                   Text(
                     currentScraperType == ScraperType.hianime
-                        ? 'ANI-CLI'
+                        ? 'PRIMARY'
                         : currentScraperType == ScraperType.live
-                            ? 'LIVE'
-                            : 'DEMO',
+                            ? 'SECONDARY'
+                            : 'PROVIDER 3',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -248,33 +282,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             onSelected: (type) {
               ref.read(scraperTypeProvider.notifier).state = type;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    type == ScraperType.hianime
-                        ? 'Switched to ani-mobile Engine (HiAnime / ZokoAnime)'
-                        : type == ScraperType.live
-                            ? 'Switched to Live Provider (Gogo/AllAnime)'
-                            : 'Switched to Demo Engine (Guaranteed test streams)',
-                  ),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
                 value: ScraperType.hianime,
-                child: Text('ani-mobile Engine (HiAnime / ZokoAnime)'),
+                child: Text('Primary Provider (Active)'),
               ),
               const PopupMenuItem(
                 enabled: false,
                 value: ScraperType.live,
-                child: Text('Live Provider (Coming Soon)', style: TextStyle(color: Colors.grey)),
+                child: Text('Secondary Provider (Coming Soon)', style: TextStyle(color: Colors.grey)),
               ),
               const PopupMenuItem(
                 enabled: false,
                 value: ScraperType.demo,
-                child: Text('Demo Scraper (Coming Soon)', style: TextStyle(color: Colors.grey)),
+                child: Text('Provider 3 (Coming Soon)', style: TextStyle(color: Colors.grey)),
               ),
             ],
           ),
@@ -839,6 +861,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
     ],
   ),
+),
 );
   }
 }

@@ -7,13 +7,13 @@ import '../../models/video_source.dart';
 import 'anime_scraper_service.dart';
 import 'base_scraper.dart';
 
-/// Exact implementation of the ani-mobile v5.1.8 scraper backend.
+/// Primary online scraper service.
 ///
-/// Uses HiAnime (hianime.at) API and the ZokoAnime deobfuscator (XOR "otaku-embed-v1")
+/// Uses primary provider API and stream deobfuscator (XOR "otaku-embed-v1")
 /// to extract live multi-bitrate HLS streaming playlists (.m3u8).
 class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
   @override
-  String get name => 'HiAnime (ani-mobile v5 Engine)';
+  String get name => 'Primary Provider';
 
   static const String baseApi = 'https://hianime.fm';
   static const String searchApi = '$baseApi/search?keyword=%s';
@@ -25,8 +25,8 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
 
   HiAnimeScraperService({super.customDio});
 
-  /// Deobfuscates the `window.__P` blob from ZokoAnime embed player.
-  /// Exactly replicates `deobfuscate_blob` from ani-mobile (XOR with "otaku-embed-v1").
+  /// Deobfuscates the `window.__P` blob from embed player.
+  /// Decodes base64 payload with XOR "otaku-embed-v1".
   static String deobfuscateBlob(String base64Blob) {
     try {
       final rawBytes = base64Decode(base64Blob.trim());
@@ -56,7 +56,6 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
       );
 
       // Remove sidebar before querying film details to prevent top 10/trending markup contamination
-      // This replicates ani-mobile: `sed '/id="main-sidebar"/,$d'`
       doc.querySelector('#main-sidebar')?.remove();
 
       final list = <Anime>[];
@@ -70,7 +69,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
         final href = titleEl.attributes['href'] ?? '';
         if (href.isEmpty) continue;
 
-        // In ani-mobile: id is the slug at the end of href, e.g. "jujutsu-kaisen-tv-534"
+        // Id is the slug at the end of href, e.g. "jujutsu-kaisen-tv-534"
         final slug = href.split('/').last.split('?').first;
 
         // Poster image from parent film-poster if available
@@ -90,7 +89,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
             id: slug,
             title: title,
             coverImage: cover,
-            synopsis: 'Found on HiAnime (ani-mobile provider).',
+            synopsis: 'Available on Primary Provider.',
             totalEpisodes: int.tryParse(epCount ?? '') ?? 0,
             hasSub: subCount != null && subCount.isNotEmpty,
             hasDub: dubCount != null && dubCount.isNotEmpty,
@@ -100,7 +99,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
 
       return list;
     } catch (e) {
-      print('HiAnime search error: $e');
+      print('Primary Provider search error: $e');
       return [];
     }
   }
@@ -132,7 +131,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
           title: title,
           japaneseTitle: japTitle,
           coverImage: cover,
-          synopsis: synopsis.isNotEmpty ? synopsis : 'Anime from HiAnime.',
+          synopsis: synopsis.isNotEmpty ? synopsis : 'Available on Primary Provider.',
           genres: genres,
         );
       }
@@ -152,7 +151,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
       id: animeId,
       title: animeId,
       coverImage: '',
-      synopsis: 'Anime from HiAnime.',
+      synopsis: 'Available on Primary Provider.',
     );
   }
 
@@ -160,7 +159,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
   Future<List<Episode>> getEpisodes(String animeId, {bool dub = false}) async {
     if (animeId.trim().isEmpty) return [];
     try {
-      // In ani-mobile: ${1##*-} extracts numeric ID after the last hyphen (e.g. "534")
+      // Extract numeric ID after the last hyphen (e.g. "534")
       final idParts = animeId.split('-');
       final numericId = idParts.last;
 
@@ -202,7 +201,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
 
       return episodes;
     } catch (e) {
-      print('HiAnime getEpisodes error: $e');
+      print('Primary Provider getEpisodes error: $e');
       return [];
     }
   }
@@ -220,7 +219,6 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
       final htmlContent = resp.data?['html'] as String? ?? '';
       final doc = Document.html(htmlContent);
 
-      // In ani-mobile: looks for data-type="$mode" and data-server-name="ZokoAnime"
       final targetType = dub ? 'dub' : 'sub';
       var serverEl = doc.querySelector('.server-item[data-type="$targetType"][data-server-name="ZokoAnime"]');
       serverEl ??= doc.querySelector('.server-item[data-type="$targetType"]');
@@ -345,7 +343,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
           url: masterM3u8Url,
           quality: 'Auto',
           isHls: true,
-          serverName: 'ZokoAnime (Adaptive)',
+          serverName: 'Stream Server 1 (Adaptive)',
           headers: playlistHeaders,
         ),
       );
@@ -371,7 +369,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
                 url: streamUrl,
                 quality: quality,
                 isHls: true,
-                serverName: 'ZokoAnime ($quality)',
+                serverName: 'Stream Server 1 ($quality)',
                 headers: playlistHeaders,
               ),
             );
@@ -389,7 +387,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
         introEnd: introEnd ?? 85,
       );
     } catch (e) {
-      print('HiAnime getStreamSources error: $e');
+      print('Primary Provider getStreamSources error: $e');
       rethrow;
     }
   }

@@ -10,7 +10,7 @@ import 'base_scraper.dart';
 /// quality selection, episode navigation, and fallback recovery.
 class DemoScraperService extends BaseScraper implements AnimeScraperService {
   @override
-  String get name => 'Demo Scraper (High Quality)';
+  String get name => 'Provider 3 (Demo)';
 
   /// Built-in rich anime catalog for instant out-of-the-box streaming and UI verification
   static final List<Anime> _catalog = [

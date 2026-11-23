@@ -92,7 +92,7 @@ class StreamBundle {
   final int episodeNumber;
   final List<VideoSource> sources;
   final List<SubtitleTrack> subtitles;
-  final int? introStart; // in seconds (for ani-mobile style skip intro)
+  final int? introStart; // in seconds (for skip intro)
   final int? introEnd; // in seconds
   final int? outroStart;
   final int? outroEnd;

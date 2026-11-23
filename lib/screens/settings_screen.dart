@@ -428,8 +428,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 10),
                   RadioListTile<ScraperType>(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('ani-mobile Engine (HiAnime / ZokoAnime)', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text('Mirrors ani-mobile shell scraper with full sub/dub streaming.'),
+                    title: const Text('Primary Provider', style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: const Text('Primary online provider with multi-quality sub & dub streaming.'),
                     value: ScraperType.hianime,
                     groupValue: ScraperType.hianime,
                     onChanged: (val) {
@@ -443,7 +443,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     title: Row(
                       children: [
                         Text(
-                          'Live Provider (Gogo/AllAnime)',
+                          'Secondary Provider',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
                             fontWeight: FontWeight.w500,
@@ -465,7 +465,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ],
                     ),
                     subtitle: Text(
-                      'Secondary public live scraper fallback (currently in development).',
+                      'Alternative provider fallback (currently in development).',
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
                     ),
                   ),
@@ -475,7 +475,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     title: Row(
                       children: [
                         Text(
-                          'Demo Scraper',
+                          'Provider 3',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
                             fontWeight: FontWeight.w500,
@@ -497,7 +497,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ],
                     ),
                     subtitle: Text(
-                      'Provides mock test streams for offline testing (coming in future update).',
+                      'Backup provider (coming in future update).',
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
                     ),
                   ),
@@ -560,7 +560,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const Divider(),
                   const SizedBox(height: 10),
                   Text(
-                    'ani-mobile is a cross-platform anime streaming and offline download application inspired by the legendary ani-mobile shell tool. Powered by Flutter, media_kit (libmpv), Dio, and Riverpod.',
+                    'ani-mobile is a cross-platform anime streaming and offline download application. Powered by Flutter, media_kit (libmpv), Dio, and Riverpod.',
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.45,

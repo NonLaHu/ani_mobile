@@ -4,12 +4,12 @@ import '../../models/video_source.dart';
 import 'anime_scraper_service.dart';
 import 'base_scraper.dart';
 
-/// Modular live scraper implementation modeled directly on the inner workings of `ani-mobile`.
+/// Modular live scraper implementation.
 ///
-/// This service outlines the exact flow used by `ani-mobile`:
+/// This service outlines the scraping flow:
 /// 1. Querying anime search endpoints and parsing DOM/JSON results.
 /// 2. Fetching episode lists with AJAX pagination.
-/// 3. Extracting player embed iframes (e.g., Vidstreaming, MegaCloud, RapidCloud).
+/// 3. Extracting player embed iframes.
 /// 4. Decrypting/extracting direct `.m3u8` or `.mp4` video links and attaching
 ///    the necessary `Referer` and `User-Agent` headers.
 ///
@@ -17,7 +17,7 @@ import 'base_scraper.dart';
 /// streaming mirrors change.
 class LiveScraperService extends BaseScraper implements AnimeScraperService {
   @override
-  String get name => 'Live Provider (Gogo / AllAnime Architecture)';
+  String get name => 'Secondary Provider';
 
   /// Base domain for the anime provider.
   /// UPDATE THIS when the domain rotates (e.g. gogoanime3.co, anitaku.to, etc.)

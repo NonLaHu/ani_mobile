@@ -33,17 +33,91 @@ class DownloadState {
   int get activeDownloadCount =>
       tasks.values.where((t) => t.isDownloading || t.isPaused).length;
 
-  DownloadTask? getTask(String episodeId) => tasks[episodeId];
+  static String normalizeTitle(String t) {
+    return t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+  }
+
+  DownloadTask? getTask(
+    String episodeId, {
+    String? animeTitle,
+    int? episodeNumber,
+    bool? isDub,
+  }) {
+    final task = tasks[episodeId];
+    if (task != null) return task;
+
+    if (animeTitle != null && episodeNumber != null) {
+      final normSearch = normalizeTitle(animeTitle);
+      for (final df in diskFiles) {
+        if (df.episodeNumber == episodeNumber &&
+            (isDub == null || df.isDub == isDub) &&
+            normalizeTitle(df.animeTitle) == normSearch &&
+            df.file.existsSync() &&
+            df.file.lengthSync() > 0) {
+          return DownloadTask(
+            id: episodeId,
+            anime: Anime(
+              id: normSearch,
+              title: df.animeTitle,
+              coverImage: '',
+              synopsis: 'Offline Download',
+            ),
+            episode: Episode(
+              id: episodeId,
+              animeId: normSearch,
+              number: df.episodeNumber,
+              title: 'Episode ${df.episodeNumber}',
+              isDub: df.isDub,
+            ),
+            source: VideoSource(
+              url: df.file.path,
+              quality: 'Offline',
+              isHls: false,
+              serverName: 'Local Storage',
+            ),
+            status: DownloadStatus.completed,
+            progress: 1.0,
+            filePath: df.file.path,
+            createdAt: df.modifiedAt,
+          );
+        }
+      }
+    }
+    return null;
+  }
 
   DownloadTask? operator [](String episodeId) => tasks[episodeId];
 
-  bool isDownloaded(String episodeId) {
+  bool isDownloaded(
+    String episodeId, {
+    String? animeTitle,
+    int? episodeNumber,
+    bool? isDub,
+  }) {
+    // 1. Check exact tracked task in state
     final task = tasks[episodeId];
-    if (task != null && task.isCompleted && task.filePath != null && File(task.filePath!).existsSync()) {
-      return true;
+    if (task != null && task.isCompleted && task.filePath != null) {
+      final f = File(task.filePath!);
+      if (f.existsSync() && f.lengthSync() > 0) {
+        return true;
+      }
     }
-    // Check disk files
-    return diskFiles.any((df) => df.file.path.contains(episodeId));
+
+    // 2. Match verified files on disk strictly by anime title and episode number
+    if (animeTitle != null && episodeNumber != null) {
+      final normSearch = normalizeTitle(animeTitle);
+      for (final df in diskFiles) {
+        if (df.episodeNumber == episodeNumber &&
+            (isDub == null || df.isDub == isDub) &&
+            normalizeTitle(df.animeTitle) == normSearch &&
+            df.file.existsSync() &&
+            df.file.lengthSync() > 0) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   bool isDownloading(String episodeId) {
@@ -131,9 +205,31 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
     }
   }
 
-  DownloadTask? getTask(String episodeId) => state.getTask(episodeId);
+  DownloadTask? getTask(
+    String episodeId, {
+    String? animeTitle,
+    int? episodeNumber,
+    bool? isDub,
+  }) =>
+      state.getTask(
+        episodeId,
+        animeTitle: animeTitle,
+        episodeNumber: episodeNumber,
+        isDub: isDub,
+      );
 
-  bool isDownloaded(String episodeId) => state.isDownloaded(episodeId);
+  bool isDownloaded(
+    String episodeId, {
+    String? animeTitle,
+    int? episodeNumber,
+    bool? isDub,
+  }) =>
+      state.isDownloaded(
+        episodeId,
+        animeTitle: animeTitle,
+        episodeNumber: episodeNumber,
+        isDub: isDub,
+      );
 
   bool isDownloading(String episodeId) => state.isDownloading(episodeId);
 

@@ -212,7 +212,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
                   child: _buildBottomBar(context, state),
                 ),
 
-                // Skip Intro Button (ani-mobile inspired quick skip)
+                // Skip Intro Button (+85s quick skip)
                 if (state.canSkipIntro)
                   Positioned(
                     bottom: 90,
