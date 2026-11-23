@@ -28,7 +28,7 @@ class UpdateController {
       final service = ref.read(updateServiceProvider);
       final info = await service.checkForUpdates(forceMockUpdate: forceMock);
       if (info.hasUpdate && context.mounted) {
-        await UpdateService.showUpdateDialog(context, info);
+        await UpdateService.showUpdateDialog(context, info, ref: ref);
       }
     } catch (_) {
       // Intentionally silent as per requirement
@@ -57,7 +57,7 @@ class UpdateController {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       if (info.hasUpdate) {
-        await UpdateService.showUpdateDialog(context, info);
+        await UpdateService.showUpdateDialog(context, info, ref: ref);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

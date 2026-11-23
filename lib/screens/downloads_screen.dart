@@ -1,13 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:open_filex/open_filex.dart';
 import '../models/anime.dart';
 import '../models/download_task.dart';
 import '../models/episode.dart';
 import '../models/video_source.dart';
+import '../providers/app_update_download_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/download/download_service.dart';
+import '../services/update/app_update_download_service.dart';
 import '../theme/app_theme.dart';
 import 'player_screen.dart';
 
@@ -97,6 +100,7 @@ class DownloadsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final downloadState = ref.watch(downloadProvider);
+    final updateState = ref.watch(appUpdateDownloadProvider);
     final inProgressTasks = downloadState.tasks.values
         .where((t) => t.isDownloading || t.isPaused || t.status == DownloadStatus.queued)
         .toList();
@@ -123,6 +127,13 @@ class DownloadsScreen extends ConsumerWidget {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
+            // App Update In-Progress or Ready to Install Banner
+            if (updateState.isDownloading || updateState.isCompleted || updateState.isFailed) ...[
+              SliverToBoxAdapter(
+                child: _buildAppUpdateBanner(context, ref, updateState, isDark),
+              ),
+            ],
+
             // Active & Paused In-Progress Downloads Section
             if (inProgressTasks.isNotEmpty) ...[
               SliverToBoxAdapter(
@@ -521,5 +532,275 @@ class DownloadsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildAppUpdateBanner(
+    BuildContext context,
+    WidgetRef ref,
+    AppUpdateDownloadState updateState,
+    bool isDark,
+  ) {
+    if (updateState.isDownloading) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDark ? AppTheme.darkSurfaceVariant : AppTheme.lightSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark ? AppTheme.accentCyan.withOpacity(0.5) : AppTheme.primaryPurple,
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? AppTheme.accentCyan.withOpacity(0.08) : Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentCyan.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.system_update_alt_rounded,
+                    color: AppTheme.accentCyan,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Updating to v${updateState.version}',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? AppTheme.textPrimary : AppTheme.lightTextPrimary,
+                        ),
+                      ),
+                      Text(
+                        '${updateState.fileName} • ${updateState.formattedDownloadedSize}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentCyan.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppTheme.accentCyan, width: 1),
+                  ),
+                  child: Text(
+                    updateState.formattedProgress,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.accentCyan,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: updateState.progress > 0 ? updateState.progress : null,
+              color: AppTheme.accentCyan,
+              backgroundColor: isDark ? Colors.white12 : Colors.black12,
+              borderRadius: BorderRadius.circular(4),
+              minHeight: 6,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.close_rounded, size: 15),
+                  label: const Text('Cancel Download', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    side: const BorderSide(color: Colors.redAccent, width: 1),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 30),
+                  ),
+                  onPressed: () {
+                    ref.read(appUpdateDownloadProvider.notifier).cancelDownload();
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (updateState.isCompleted) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+        child: Material(
+          color: isDark ? const Color(0xFF10281E) : const Color(0xFFE8F5E9),
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () async {
+              final result = await ref.read(appUpdateDownloadProvider.notifier).installApk();
+              if (result.type != ResultType.done && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      result.message.isNotEmpty
+                          ? 'Notice: ${result.message}. Enable "Install unknown apps" if prompted.'
+                          : 'Please confirm the Android installation prompt.',
+                    ),
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isDark ? Colors.greenAccent.shade400 : Colors.green.shade600,
+                  width: 1.4,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (isDark ? Colors.greenAccent : Colors.green).withOpacity(0.18),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.verified_rounded,
+                          color: isDark ? Colors.greenAccent : Colors.green.shade800,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'App Update v${updateState.version} Ready to Install!',
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.green.shade900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Downloaded: ${updateState.fileName}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.white70 : Colors.green.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        label: const Text('Dismiss', style: TextStyle(fontSize: 12)),
+                        style: TextButton.styleFrom(
+                          foregroundColor: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        ),
+                        onPressed: () {
+                          ref.read(appUpdateDownloadProvider.notifier).clear();
+                        },
+                      ),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.install_mobile_rounded, size: 17),
+                        label: const Text('Install Update Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isDark ? Colors.greenAccent.shade700 : Colors.green.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () async {
+                          final result = await ref.read(appUpdateDownloadProvider.notifier).installApk();
+                          if (result.type != ResultType.done && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  result.message.isNotEmpty
+                                      ? 'Notice: ${result.message}. Enable "Install unknown apps" if prompted.'
+                                      : 'Launching package installer...',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (updateState.isFailed) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Update download failed: ${updateState.errorMessage ?? "Unknown network error"}',
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, size: 16, color: Colors.redAccent),
+              onPressed: () => ref.read(appUpdateDownloadProvider.notifier).clear(),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 }

@@ -1,9 +1,13 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/app_update_info.dart';
+import '../../providers/app_update_download_provider.dart';
+import '../../screens/downloads_screen.dart';
 import '../../theme/app_theme.dart';
+import 'app_update_download_service.dart';
 
 /// Service responsible for querying app updates and presenting update alerts.
 class UpdateService {
@@ -146,12 +150,16 @@ class UpdateService {
     }
   }
 
-  /// Presents a closable update pop-up dialog to the user.
+  /// Presents a closable update pop-up dialog to the user with choices for
+  /// in-app compatible APK downloading or external browser release page viewing.
   static Future<void> showUpdateDialog(
     BuildContext context,
-    AppUpdateInfo updateInfo,
-  ) async {
+    AppUpdateInfo updateInfo, {
+    WidgetRef? ref,
+  }) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final compatibleApk =
+        AppUpdateDownloadService.getCompatibleApkFileName(updateInfo.latestVersion);
 
     return showDialog<void>(
       context: context,
@@ -209,12 +217,43 @@ class UpdateService {
             ],
           ),
           content: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 280),
+            constraints: const BoxConstraints(maxHeight: 320),
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Compatible APK Chip
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isDark ? Colors.white10 : Colors.black12,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.android_rounded, size: 15, color: AppTheme.accentCyan),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Package: $compatibleApk',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
                   if (updateInfo.releaseTitle.isNotEmpty) ...[
                     Text(
                       updateInfo.releaseTitle,
@@ -251,38 +290,82 @@ class UpdateService {
               ),
             ),
           ),
-          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(
-                'Later',
-                style: TextStyle(
-                  color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+            Row(
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(
+                    'Later',
+                    style: TextStyle(
+                      color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.accentCyan,
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                const Spacer(),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDark ? AppTheme.accentCyan : AppTheme.primaryPurple,
+                    side: BorderSide(
+                      color: isDark ? AppTheme.accentCyan.withOpacity(0.6) : AppTheme.primaryPurple.withOpacity(0.6),
+                      width: 1.2,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                  icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                  label: const Text('Page', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  onPressed: () async {
+                    Navigator.of(ctx).pop();
+                    final url = updateInfo.downloadUrl ?? githubReleasesUrl;
+                    final uri = Uri.tryParse(url);
+                    if (uri != null) {
+                      try {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } catch (_) {}
+                    }
+                  },
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-              icon: const Icon(Icons.download_rounded, size: 18),
-              label: const Text('Update Now', style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: () async {
-                Navigator.of(ctx).pop();
-                final url = updateInfo.downloadUrl ?? githubReleasesUrl;
-                final uri = Uri.tryParse(url);
-                if (uri != null) {
-                  try {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  } catch (_) {}
-                }
-              },
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.accentCyan,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  icon: const Icon(Icons.download_for_offline_rounded, size: 17),
+                  label: const Text('Download In-App', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    if (ref != null) {
+                      ref.read(appUpdateDownloadProvider.notifier).startDownload(
+                            version: updateInfo.latestVersion,
+                            explicitUrl: updateInfo.downloadUrl?.endsWith('.apk') == true
+                                ? updateInfo.downloadUrl
+                                : null,
+                          );
+
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const DownloadsScreen(),
+                        ),
+                      );
+                    } else {
+                      final url = updateInfo.downloadUrl ?? githubReleasesUrl;
+                      final uri = Uri.tryParse(url);
+                      if (uri != null) {
+                        launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    }
+                  },
+                ),
+              ],
             ),
           ],
         );

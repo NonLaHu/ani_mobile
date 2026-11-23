@@ -13,6 +13,7 @@ import 'package:ani_mobile/providers/playback_settings_provider.dart';
 import 'package:ani_mobile/services/download/download_service.dart';
 import 'package:ani_mobile/services/scraper/anime_scraper_service.dart';
 import 'package:ani_mobile/services/scraper/demo_scraper_service.dart';
+import 'package:ani_mobile/services/update/app_update_download_service.dart';
 import 'package:ani_mobile/services/update/update_service.dart';
 
 void main() {
@@ -423,6 +424,30 @@ void main() {
       expect(updateInfo.latestVersion, equals('1.2.0'));
       expect(updateInfo.releaseTitle, equals('v1.2.0 - Major Update'));
       expect(updateInfo.downloadUrl, contains('v1.2.0'));
+    });
+
+    test('AppUpdateDownloadService resolves compatible APK binary and download URL', () {
+      final apkName = AppUpdateDownloadService.getCompatibleApkFileName('1.0.1');
+      expect(apkName.endsWith('.apk'), isTrue);
+
+      final dlUrl = AppUpdateDownloadService.getDownloadUrl(
+        repo: 'NonLaHu/ani_mobile',
+        version: '1.0.1',
+        fileName: apkName,
+      );
+      expect(dlUrl, contains('NonLaHu/ani_mobile/releases/download/v1.0.1/$apkName'));
+
+      const state = AppUpdateDownloadState(
+        status: UpdateDownloadStatus.downloading,
+        progress: 0.5,
+        downloadedBytes: 15 * 1024 * 1024,
+        totalBytes: 30 * 1024 * 1024,
+        version: '1.0.1',
+        fileName: 'test.apk',
+      );
+      expect(state.isDownloading, isTrue);
+      expect(state.formattedProgress, equals('50%'));
+      expect(state.formattedDownloadedSize, contains('15.0 MB / 30.0 MB'));
     });
   });
 }
