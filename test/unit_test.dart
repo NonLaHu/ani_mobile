@@ -391,5 +391,37 @@ void main() {
       expect(mockInfo.latestVersion, equals('1.1.0'));
       expect(mockInfo.releaseNotes.isNotEmpty, isTrue);
     });
+
+    test('UpdateService parses version.json payload successfully', () async {
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (options.uri.toString() == UpdateService.versionJsonUrl) {
+              return handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'latest_version': '1.2.0',
+                    'release_title': 'v1.2.0 - Major Update',
+                    'release_notes': '• Added new features',
+                    'apk_url': 'https://github.com/NonLaHu/ani_mobile/releases/download/v1.2.0/app-release.apk',
+                  },
+                ),
+              );
+            }
+            return handler.next(options);
+          },
+        ),
+      );
+
+      final service = UpdateService(customDio: dio);
+      final updateInfo = await service.checkForUpdates();
+      expect(updateInfo.hasUpdate, isTrue);
+      expect(updateInfo.latestVersion, equals('1.2.0'));
+      expect(updateInfo.releaseTitle, equals('v1.2.0 - Major Update'));
+      expect(updateInfo.downloadUrl, contains('v1.2.0'));
+    });
   });
 }

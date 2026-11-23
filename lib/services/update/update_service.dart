@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -10,12 +11,17 @@ class UpdateService {
   static const String currentAppVersion = '1.0.0';
   static const String githubRepo = 'NonLaHu/ani_mobile';
   static const String githubReleasesUrl = 'https://github.com/$githubRepo/releases';
+  static const String versionJsonUrl =
+      'https://raw.githubusercontent.com/$githubRepo/main/version.json';
 
   UpdateService({Dio? customDio}) : _dio = customDio ?? Dio();
 
   /// Checks for available application updates.
   ///
-  /// Can check real GitHub releases API or return simulated mock update data.
+  /// Priority:
+  /// 1. Fast, uncapped Fastly CDN query to `version.json` in the GitHub repository.
+  /// 2. Fallback to GitHub REST Releases API (`api.github.com/repos/.../releases/latest`).
+  /// 3. Offline/error fallback (silently reports up-to-date).
   Future<AppUpdateInfo> checkForUpdates({bool forceMockUpdate = false}) async {
     if (forceMockUpdate) {
       return const AppUpdateInfo(
@@ -33,6 +39,50 @@ class UpdateService {
       );
     }
 
+    // Step 1: Attempt ultra-fast CDN fetch from version.json in raw GitHub content
+    try {
+      final response = await _dio.get<dynamic>(
+        versionJsonUrl,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+          },
+          receiveTimeout: const Duration(seconds: 4),
+          sendTimeout: const Duration(seconds: 4),
+        ),
+      );
+
+      if (response.data != null) {
+        final Map<String, dynamic> data = response.data is Map<String, dynamic>
+            ? response.data as Map<String, dynamic>
+            : (jsonDecode(response.data.toString()) as Map<String, dynamic>);
+
+        final latest = (data['latest_version'] as String? ?? '').replaceAll('v', '').trim();
+        if (latest.isNotEmpty) {
+          final title = data['release_title'] as String? ?? 'v$latest';
+          final notes = data['release_notes'] as String? ?? 'Bug fixes and performance improvements.';
+          final downloadUrl = data['download_url'] as String? ??
+              data['apk_url'] as String? ??
+              githubReleasesUrl;
+          final hasUpdate = _isVersionGreater(latest, currentAppVersion);
+
+          return AppUpdateInfo(
+            currentVersion: currentAppVersion,
+            latestVersion: latest,
+            hasUpdate: hasUpdate,
+            releaseTitle: title,
+            releaseNotes: notes,
+            downloadUrl: downloadUrl,
+          );
+        }
+      }
+    } catch (_) {
+      // Proceed to GitHub Releases API fallback if raw version.json cannot be reached
+    }
+
+    // Step 2: Fallback to GitHub Releases REST API
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         'https://api.github.com/repos/$githubRepo/releases/latest',
@@ -67,7 +117,7 @@ class UpdateService {
       // Silently fall through on network failure or if no GitHub releases exist yet
     }
 
-    // Default mock behavior when offline or pre-release
+    // Default behavior when offline or already on latest version
     return const AppUpdateInfo(
       currentVersion: currentAppVersion,
       latestVersion: currentAppVersion,
