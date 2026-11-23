@@ -189,7 +189,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (bundle.sources.isEmpty) {
         state = state.copyWith(
           isLoadingStream: false,
-          errorMessage: 'This episode has not been uploaded yet or has no playable stream sources.',
+          errorMessage:
+              'This episode has not been uploaded yet or has no playable stream sources. Try turning on a VPN if you think it has already aired.',
         );
         return false;
       }

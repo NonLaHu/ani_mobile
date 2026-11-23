@@ -260,7 +260,7 @@ class _DownloadResolutionSheetState extends ConsumerState<DownloadResolutionShee
               )
             else if (_errorMessage != null)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
                 child: Center(
                   child: Column(
                     children: [
@@ -270,6 +270,32 @@ class _DownloadResolutionSheetState extends ConsumerState<DownloadResolutionShee
                         _errorMessage!,
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.amber.withOpacity(0.35)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.vpn_key_rounded, color: Colors.amberAccent, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Tip: If you know this episode has already aired, try turning on a VPN. Video streams may be geo-restricted or blocked by your network.',
+                                style: TextStyle(
+                                  color: Colors.amber.shade200,
+                                  fontSize: 12,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 14),
                       ElevatedButton.icon(

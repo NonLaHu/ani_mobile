@@ -198,7 +198,7 @@ To add a new anime provider (e.g. a custom API or web scraper):
 
 ---
 
-## 🚀 Running the Project
+## 🚀 Running & Building the Project
 
 1. **Install Flutter Dependencies**:
    ```bash
@@ -222,7 +222,33 @@ To add a new anime provider (e.g. a custom API or web scraper):
    flutter run -d windows
    ```
 
+4. **Build Android Release APK**:
+   ```bash
+   # Universal release APK:
+   flutter build apk --release
+
+   # Generated binary is located at:
+   # build/app/outputs/flutter-apk/app-release.apk
+
+   # Or generate split per-ABI APKs (smaller file size):
+   flutter build apk --split-per-abi --release
+   ```
+
+---
+
+## 💡 Troubleshooting & Playback Tips
+
+- **False-Positive "Not Aired Yet" / Stream Unavailable**: If an episode appears unavailable even though it has aired, the third-party embed host may be geo-restricted or blocked by your ISP/network. Enabling a VPN or switching server regions resolves most host blockades.
+- **Hardware Acceleration**: On Linux systems or devices with specific GPU driver limitations, software rendering can be toggled in `Settings > Video Player Rendering`.
+
+---
+
+## ⚖️ Disclaimer
+
+The developers of `ani-mobile` do not host, store, or distribute any media files; users assume full legal responsibility for how they use this tool and for complying with applicable local laws.
+
 ---
 
 ## 📜 License
-Licensed under the MIT License.
+
+Licensed under the [MIT License](LICENSE).

@@ -113,9 +113,48 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                   ),
                 ],
               ),
-              content: Text(
-                'Episode ${episode.number} cannot be played:\n\n$errorMsg\n\nThis episode may not have aired yet or has not been uploaded to streaming servers.',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Episode ${episode.number} cannot be played:\n\n$errorMsg',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber.withOpacity(0.35)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.vpn_key_rounded, color: Colors.amberAccent, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Tip: If you know this episode has already aired, try turning on a VPN (or switching server regions). Streaming hosts or embed players may be geo-restricted or blocked by your network/ISP.',
+                            style: TextStyle(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.amber.shade200
+                                  : Colors.amber.shade900,
+                              fontSize: 12,
+                              height: 1.35,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               actions: [
                 TextButton(

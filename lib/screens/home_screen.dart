@@ -68,7 +68,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final success = await setup();
       if (!success) {
         if (mounted) {
-          final err = ref.read(playerProvider).errorMessage ?? 'Episode stream is currently unavailable.';
+          final rawErr = ref.read(playerProvider).errorMessage ?? 'Episode stream is currently unavailable.';
+          final hasVpnTip = rawErr.toLowerCase().contains('vpn');
+          final displayErr = hasVpnTip
+              ? rawErr
+              : '$rawErr (Try turning on a VPN if you think it has already aired)';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -77,7 +81,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      err,
+                      displayErr,
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
                     ),
                   ),
@@ -85,7 +89,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               backgroundColor: const Color(0xFF2C243B),
               behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 4),
+              duration: const Duration(seconds: 5),
             ),
           );
         }

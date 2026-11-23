@@ -3,10 +3,13 @@ import '../../models/episode.dart';
 import '../../models/video_source.dart';
 
 /// Exception thrown when an episode is listed in the catalog but has not been
-/// uploaded or released yet by streaming hosts.
+/// uploaded or released yet by streaming hosts, or is blocked by network/region.
 class EpisodeNotAvailableException implements Exception {
   final String message;
-  const EpisodeNotAvailableException([this.message = 'Episode has not been uploaded yet or is unavailable from streaming providers.']);
+  const EpisodeNotAvailableException([
+    this.message =
+        'Episode has not been uploaded yet or is unavailable from streaming providers. Try turning on a VPN if you think this episode has already aired.',
+  ]);
 
   @override
   String toString() => message;

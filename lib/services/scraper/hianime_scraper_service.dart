@@ -227,12 +227,12 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
 
       if (serverEl == null) {
         throw EpisodeNotAvailableException(
-            'No streaming servers found for episode $episodeId. It may not have been released or uploaded yet.');
+            'No streaming servers found for episode $episodeId. It may not have been released or uploaded yet. Try turning on a VPN if you think it has already aired.');
       }
 
       final hash = serverEl.attributes['data-hash'] ?? '';
       if (hash.isEmpty) {
-        throw EpisodeNotAvailableException('Streaming server has no playable video hash for episode $episodeId.');
+        throw EpisodeNotAvailableException('Streaming server has no playable video hash for episode $episodeId. Try turning on a VPN if it has already aired.');
       }
 
       // Step 2: Base64 decode embed URL
@@ -261,7 +261,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
           embedHtml.contains('Error</span><span class="code">404') ||
           embedHtml.contains('Not <span class="stroke">found')) {
         throw const EpisodeNotAvailableException(
-            'This episode has not been uploaded yet or is not currently available from the streaming host.');
+            'This episode has not been uploaded yet or is not currently available from the streaming host. Try turning on a VPN if you think it has already aired.');
       }
 
       final pMatch = RegExp(r'window\.__P\s*=\s*["\x27]([^"\x27]*)["\x27]')
@@ -317,7 +317,7 @@ class HiAnimeScraperService extends BaseScraper implements AnimeScraperService {
 
       if (masterM3u8Url.isEmpty) {
         throw const EpisodeNotAvailableException(
-            'Could not locate playable stream source in embed player. Episode may be upcoming or not yet uploaded.');
+            'Could not locate playable stream source in embed player. Episode may be upcoming or not yet uploaded. Try turning on a VPN if you think it has already aired.');
       }
 
       // Step 5: Fetch master playlist to parse qualities (1080p, 720p, etc.)
