@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ani_mobile/models/anime.dart';
 import 'package:ani_mobile/models/app_update_info.dart';
