@@ -583,6 +583,8 @@ class DownloadsScreen extends ConsumerWidget {
                     children: [
                       Text(
                         'Updating to v${updateState.version}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.bold,
@@ -591,6 +593,8 @@ class DownloadsScreen extends ConsumerWidget {
                       ),
                       Text(
                         '${updateState.fileName} • ${updateState.formattedDownloadedSize}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 12,
                           color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
@@ -705,6 +709,8 @@ class DownloadsScreen extends ConsumerWidget {
                           children: [
                             Text(
                               'App Update v${updateState.version} Ready to Install!',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 14.5,
                                 fontWeight: FontWeight.bold,
@@ -714,6 +720,8 @@ class DownloadsScreen extends ConsumerWidget {
                             const SizedBox(height: 2),
                             Text(
                               'Downloaded: ${updateState.fileName}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: isDark ? Colors.white70 : Colors.green.shade800,
@@ -730,10 +738,10 @@ class DownloadsScreen extends ConsumerWidget {
                     children: [
                       TextButton.icon(
                         icon: const Icon(Icons.close_rounded, size: 16),
-                        label: const Text('Dismiss', style: TextStyle(fontSize: 12)),
+                        label: const Text('Dismiss', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
                         style: TextButton.styleFrom(
                           foregroundColor: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                         ),
                         onPressed: () {
                           ref.read(appUpdateDownloadProvider.notifier).clear();
@@ -741,11 +749,11 @@ class DownloadsScreen extends ConsumerWidget {
                       ),
                       ElevatedButton.icon(
                         icon: const Icon(Icons.install_mobile_rounded, size: 17),
-                        label: const Text('Install Update Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                        label: const Text('Install Update Now', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isDark ? Colors.greenAccent.shade700 : Colors.green.shade700,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                         onPressed: () async {

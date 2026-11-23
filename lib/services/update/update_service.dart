@@ -12,7 +12,7 @@ import 'app_update_download_service.dart';
 /// Service responsible for querying app updates and presenting update alerts.
 class UpdateService {
   final Dio _dio;
-  static const String currentAppVersion = '1.0.0';
+  static const String currentAppVersion = '1.0.1';
   static const String githubRepo = 'NonLaHu/ani_mobile';
   static const String githubReleasesUrl = 'https://github.com/$githubRepo/releases';
   static const String versionJsonUrl =
@@ -290,80 +290,117 @@ class UpdateService {
               ),
             ),
           ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
           actions: [
-            Row(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text(
-                    'Later',
-                    style: TextStyle(
-                      color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: isDark ? AppTheme.accentCyan : AppTheme.primaryPurple,
-                    side: BorderSide(
-                      color: isDark ? AppTheme.accentCyan.withOpacity(0.6) : AppTheme.primaryPurple.withOpacity(0.6),
-                      width: 1.2,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  ),
-                  icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                  label: const Text('Page', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  onPressed: () async {
-                    Navigator.of(ctx).pop();
-                    final url = updateInfo.downloadUrl ?? githubReleasesUrl;
-                    final uri = Uri.tryParse(url);
-                    if (uri != null) {
-                      try {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      } catch (_) {}
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentCyan,
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  icon: const Icon(Icons.download_for_offline_rounded, size: 17),
-                  label: const Text('Download In-App', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    if (ref != null) {
-                      ref.read(appUpdateDownloadProvider.notifier).startDownload(
-                            version: updateInfo.latestVersion,
-                            explicitUrl: updateInfo.downloadUrl?.endsWith('.apk') == true
-                                ? updateInfo.downloadUrl
-                                : null,
-                          );
-
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const DownloadsScreen(),
+                // Top Row: Left is Later, Right is Page
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                          minimumSize: const Size(0, 36),
                         ),
-                      );
-                    } else {
-                      final url = updateInfo.downloadUrl ?? githubReleasesUrl;
-                      final uri = Uri.tryParse(url);
-                      if (uri != null) {
-                        launchUrl(uri, mode: LaunchMode.externalApplication);
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: Text(
+                          'Later',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark ? AppTheme.accentCyan : AppTheme.primaryPurple,
+                          side: BorderSide(
+                            color: isDark
+                                ? AppTheme.accentCyan.withOpacity(0.6)
+                                : AppTheme.primaryPurple.withOpacity(0.6),
+                            width: 1.2,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                          minimumSize: const Size(0, 36),
+                        ),
+                        icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                        label: const Text(
+                          'Release Page',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () async {
+                          Navigator.of(ctx).pop();
+                          final url = updateInfo.downloadUrl ?? githubReleasesUrl;
+                          final uri = Uri.tryParse(url);
+                          if (uri != null) {
+                            try {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            } catch (_) {}
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Bottom Row: Full width Download In-App button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.accentCyan,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                      minimumSize: const Size(0, 42),
+                    ),
+                    icon: const Icon(Icons.download_for_offline_rounded, size: 18),
+                    label: const Text(
+                      'Download In-App',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      if (ref != null) {
+                        ref.read(appUpdateDownloadProvider.notifier).startDownload(
+                              version: updateInfo.latestVersion,
+                              explicitUrl: updateInfo.downloadUrl?.endsWith('.apk') == true
+                                  ? updateInfo.downloadUrl
+                                  : null,
+                            );
+
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const DownloadsScreen(),
+                          ),
+                        );
+                      } else {
+                        final url = updateInfo.downloadUrl ?? githubReleasesUrl;
+                        final uri = Uri.tryParse(url);
+                        if (uri != null) {
+                          launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
                       }
-                    }
-                  },
+                    },
+                  ),
                 ),
               ],
             ),

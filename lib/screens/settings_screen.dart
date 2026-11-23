@@ -7,6 +7,7 @@ import '../providers/scraper_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/update_provider.dart';
 import '../services/scraper/scraper_factory.dart';
+import '../services/update/update_service.dart';
 import '../theme/app_theme.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -547,7 +548,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             ),
                           ),
                           Text(
-                            'Version 1.0.0 (Release)',
+                            'Version ${UpdateService.currentAppVersion} (Release)',
                             style: TextStyle(
                               color: isDark ? AppTheme.textMuted : AppTheme.lightTextMuted,
                               fontSize: 12.5,
