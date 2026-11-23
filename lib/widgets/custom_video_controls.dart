@@ -22,6 +22,9 @@ class CustomVideoControls extends StatefulWidget {
   final VoidCallback? onDownload;
   final bool subtitlesEnabled;
   final VoidCallback? onToggleSubtitles;
+  final double currentVolume;
+  final ValueChanged<double>? onVolumeChanged;
+  final VoidCallback? onOpenExternal;
 
   const CustomVideoControls({
     super.key,
@@ -39,6 +42,9 @@ class CustomVideoControls extends StatefulWidget {
     this.onDownload,
     this.subtitlesEnabled = true,
     this.onToggleSubtitles,
+    this.currentVolume = 100.0,
+    this.onVolumeChanged,
+    this.onOpenExternal,
   });
 
   @override
@@ -55,10 +61,27 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
   String? _quickSeekLabel;
   Timer? _quickSeekTimer;
 
+  // Volume Touch Drag State
+  bool _showVolumeIndicator = false;
+  double _currentDisplayVolume = 100.0;
+  Timer? _volumeIndicatorTimer;
+  double _dragStartY = 0.0;
+  double _dragStartVolume = 100.0;
+  bool _isDraggingVolume = false;
+
   @override
   void initState() {
     super.initState();
+    _currentDisplayVolume = widget.currentVolume;
     _startHideTimer();
+  }
+
+  @override
+  void didUpdateWidget(CustomVideoControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isDraggingVolume && oldWidget.currentVolume != widget.currentVolume) {
+      _currentDisplayVolume = widget.currentVolume;
+    }
   }
 
   @override
@@ -66,6 +89,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
     _hideTimer?.cancel();
     _seekDebounceTimer?.cancel();
     _quickSeekTimer?.cancel();
+    _volumeIndicatorTimer?.cancel();
     super.dispose();
   }
 
@@ -105,6 +129,43 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
+  void _onVerticalDragStart(DragStartDetails details) {
+    _isDraggingVolume = true;
+    _dragStartY = details.localPosition.dy;
+    _dragStartVolume = widget.currentVolume;
+    _currentDisplayVolume = widget.currentVolume;
+    _volumeIndicatorTimer?.cancel();
+    setState(() {
+      _showVolumeIndicator = true;
+    });
+  }
+
+  void _onVerticalDragUpdate(DragUpdateDetails details) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final deltaY = _dragStartY - details.localPosition.dy;
+    final volumeDelta = (deltaY / (screenHeight * 0.70)) * 100.0;
+    final newVolume = (_dragStartVolume + volumeDelta).clamp(0.0, 100.0);
+
+    setState(() {
+      _currentDisplayVolume = newVolume;
+      _showVolumeIndicator = true;
+    });
+
+    widget.onVolumeChanged?.call(newVolume);
+  }
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    _isDraggingVolume = false;
+    _volumeIndicatorTimer?.cancel();
+    _volumeIndicatorTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) {
+        setState(() {
+          _showVolumeIndicator = false;
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.playerState;
@@ -115,135 +176,200 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
         setState(() => _visible = !_visible);
         if (_visible) _startHideTimer();
       },
-      child: AnimatedOpacity(
-        opacity: _visible ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 250),
-        child: IgnorePointer(
-          ignoring: !_visible,
-          child: Container(
-            color: Colors.black45,
-            child: Stack(
-              children: [
-                // Double tap skip zones
-                Positioned.fill(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onDoubleTap: () {
-                            widget.onSkipBackward10();
-                            _showQuickSeekFeedback(isForward: false);
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 140),
-                      Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onDoubleTap: () {
-                            widget.onSkipForward10();
-                            _showQuickSeekFeedback(isForward: true);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Quick seek feedback badge
-                if (_quickSeekLabel != null)
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppTheme.accentCyan, width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.accentCyan.withOpacity(0.3),
-                            blurRadius: 16,
-                          ),
-                        ],
-                      ),
+      onVerticalDragStart: _onVerticalDragStart,
+      onVerticalDragUpdate: _onVerticalDragUpdate,
+      onVerticalDragEnd: _onVerticalDragEnd,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedOpacity(
+            opacity: _visible ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 250),
+            child: IgnorePointer(
+              ignoring: !_visible,
+              child: Container(
+                color: Colors.black45,
+                child: Stack(
+                  children: [
+                    // Double tap skip zones
+                    Positioned.fill(
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            _quickSeekLabel!.contains('+')
-                                ? Icons.fast_forward_rounded
-                                : Icons.fast_rewind_rounded,
-                            color: AppTheme.accentCyan,
-                            size: 24,
+                          Expanded(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onDoubleTap: () {
+                                widget.onSkipBackward10();
+                                _showQuickSeekFeedback(isForward: false);
+                              },
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _quickSeekLabel!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(width: 140),
+                          Expanded(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onDoubleTap: () {
+                                widget.onSkipForward10();
+                                _showQuickSeekFeedback(isForward: true);
+                              },
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
 
-                // Top Action Bar
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: _buildTopBar(context, state),
-                ),
+                    // Quick seek feedback badge
+                    if (_quickSeekLabel != null)
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.black87,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppTheme.accentCyan, width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.accentCyan.withOpacity(0.3),
+                                blurRadius: 16,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _quickSeekLabel!.contains('+')
+                                    ? Icons.fast_forward_rounded
+                                    : Icons.fast_rewind_rounded,
+                                color: AppTheme.accentCyan,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _quickSeekLabel!,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
 
-                // Center Play/Skip Controls
-                Center(
-                  child: _buildCenterControls(state),
-                ),
-
-                // Bottom Controls & Seeker
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: _buildBottomBar(context, state),
-                ),
-
-                // Skip Intro Button (+85s quick skip)
-                if (state.canSkipIntro)
-                  Positioned(
-                    bottom: 90,
-                    right: 24,
-                    child: _buildSkipIntroButton(),
-                  ),
-
-                // Info / Fallback Notification Banner
-                if (state.infoMessage != null)
-                  Positioned(
-                    top: 70,
-                    left: 20,
-                    right: 20,
-                    child: _buildNotificationBanner(
-                      state.infoMessage!,
-                      Colors.cyanAccent,
+                    // Top Action Bar
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: _buildTopBar(context, state),
                     ),
-                  ),
 
-                // Error Banner with Retry
-                if (state.errorMessage != null)
-                  Positioned(
-                    top: 70,
-                    left: 20,
-                    right: 20,
-                    child: _buildErrorBanner(state.errorMessage!),
-                  ),
-              ],
+                    // Center Play/Skip Controls
+                    Center(
+                      child: _buildCenterControls(state),
+                    ),
+
+                    // Bottom Controls & Seeker
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: _buildBottomBar(context, state),
+                    ),
+
+                    // Skip Intro Button (+85s quick skip)
+                    if (state.canSkipIntro)
+                      Positioned(
+                        bottom: 90,
+                        right: 24,
+                        child: _buildSkipIntroButton(),
+                      ),
+
+                    // Info / Fallback Notification Banner
+                    if (state.infoMessage != null)
+                      Positioned(
+                        top: 70,
+                        left: 20,
+                        right: 20,
+                        child: _buildNotificationBanner(
+                          state.infoMessage!,
+                          Colors.cyanAccent,
+                        ),
+                      ),
+
+                    // Error Banner with Retry
+                    if (state.errorMessage != null)
+                      Positioned(
+                        top: 70,
+                        left: 20,
+                        right: 20,
+                        child: _buildErrorBanner(state.errorMessage!),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+
+          // Volume Indicator HUD Overlay (displays during swipe up/down gesture)
+          if (_showVolumeIndicator)
+            Center(
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.accentCyan.withOpacity(0.6), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.7),
+                        blurRadius: 24,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _currentDisplayVolume <= 0
+                            ? Icons.volume_off_rounded
+                            : _currentDisplayVolume < 50
+                                ? Icons.volume_down_rounded
+                                : Icons.volume_up_rounded,
+                        color: AppTheme.accentCyan,
+                        size: 38,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_currentDisplayVolume.round()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: 110,
+                        height: 5,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: _currentDisplayVolume / 100.0,
+                            backgroundColor: Colors.white24,
+                            valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accentCyan),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -352,8 +478,19 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
                 ),
               ),
             ),
+          if (widget.onOpenExternal != null) ...[
+            const SizedBox(width: 6),
+            IconButton(
+              icon: const Icon(Icons.open_in_new_rounded, color: Colors.white, size: 22),
+              tooltip: 'Open in External Player / Share',
+              onPressed: () {
+                _onUserInteraction();
+                widget.onOpenExternal?.call();
+              },
+            ),
+          ],
           if (widget.onDownload != null) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             IconButton(
               icon: const Icon(Icons.download_rounded, color: Colors.white, size: 24),
               tooltip: 'Download Episode',

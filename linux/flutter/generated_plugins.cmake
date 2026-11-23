@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   media_kit_libs_linux
+  url_launcher_linux
   volume_controller
   media_kit_video
 )

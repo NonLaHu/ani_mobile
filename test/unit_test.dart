@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ani_mobile/models/anime.dart';
+import 'package:ani_mobile/models/app_update_info.dart';
 import 'package:ani_mobile/models/download_task.dart';
 import 'package:ani_mobile/models/episode.dart';
 import 'package:ani_mobile/models/favorite_item.dart';
@@ -11,6 +12,7 @@ import 'package:ani_mobile/providers/playback_settings_provider.dart';
 import 'package:ani_mobile/services/download/download_service.dart';
 import 'package:ani_mobile/services/scraper/anime_scraper_service.dart';
 import 'package:ani_mobile/services/scraper/demo_scraper_service.dart';
+import 'package:ani_mobile/services/update/update_service.dart';
 
 void main() {
   group('Data Models', () {
@@ -363,6 +365,31 @@ void main() {
         isDub: false,
       );
       expect(isJJK4Downloaded, isFalse);
+    });
+
+    test('AppUpdateInfo serialization & mock update validation', () async {
+      const info = AppUpdateInfo(
+        currentVersion: '1.0.0',
+        latestVersion: '1.1.0',
+        hasUpdate: true,
+        releaseTitle: 'v1.1.0 Release',
+        releaseNotes: '• New features',
+        downloadUrl: 'https://example.com',
+      );
+
+      final json = info.toJson();
+      final fromJson = AppUpdateInfo.fromJson(json);
+
+      expect(fromJson.currentVersion, equals('1.0.0'));
+      expect(fromJson.latestVersion, equals('1.1.0'));
+      expect(fromJson.hasUpdate, isTrue);
+      expect(fromJson.releaseTitle, equals('v1.1.0 Release'));
+
+      final updateService = UpdateService();
+      final mockInfo = await updateService.checkForUpdates(forceMockUpdate: true);
+      expect(mockInfo.hasUpdate, isTrue);
+      expect(mockInfo.latestVersion, equals('1.1.0'));
+      expect(mockInfo.releaseNotes.isNotEmpty, isTrue);
     });
   });
 }

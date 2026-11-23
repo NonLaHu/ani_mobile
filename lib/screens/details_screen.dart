@@ -9,6 +9,7 @@ import '../providers/download_provider.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
+import '../services/external_player_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/download_resolution_sheet.dart';
 import '../widgets/loading_cycle.dart';
@@ -145,7 +146,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     }
   }
 
-  void _showDownloadOptions(BuildContext context, Episode ep) {
+  void _showDownloadOptions(BuildContext context, Episode ep, Anime anime) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -164,6 +165,28 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                 subtitle: const Text('Saved locally for offline streaming.'),
               ),
               const Divider(),
+              ListTile(
+                leading: const Icon(Icons.open_in_new_rounded, color: AppTheme.accentCyan),
+                title: const Text('Open with External Player / Share'),
+                subtitle: const Text('Play in VLC, MX Player, or share video file.'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  final task = ref.read(downloadProvider.notifier).getTask(
+                        ep.id,
+                        animeTitle: anime.title,
+                        episodeNumber: ep.number,
+                        isDub: ep.isDub,
+                      );
+                  if (task != null && task.filePath != null) {
+                    ExternalPlayerService.openOrShareEpisode(
+                      context: context,
+                      title: '${anime.title} - Episode ${ep.number}',
+                      urlOrPath: task.filePath!,
+                      isLocalFile: true,
+                    );
+                  }
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
                 title: const Text('Delete Downloaded File', style: TextStyle(color: Colors.redAccent)),
@@ -1190,7 +1213,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                               ),
                                               tooltip: 'Downloaded (Offline Ready)',
                                               onPressed: () {
-                                                _showDownloadOptions(context, ep);
+                                                _showDownloadOptions(context, ep, anime);
                                               },
                                             );
                                           }

@@ -10,6 +10,7 @@ import '../providers/download_provider.dart';
 import '../providers/playback_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/watch_history_provider.dart';
+import '../services/external_player_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_video_controls.dart';
 import '../widgets/download_resolution_sheet.dart';
@@ -39,6 +40,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _seekDebounceTimer;
   bool _subtitlesVisible = true;
   SubtitleTrack? _lastActiveSubtitleTrack;
+  double _currentVolume = 100.0;
 
   @override
   void initState() {
@@ -116,6 +118,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _player.stream.buffering.listen((isBuffering) {
         if (!mounted || _isDisposing) return;
         ref.read(playerProvider.notifier).updatePlaybackMetrics(isBuffering: isBuffering);
+      }),
+    );
+
+    // Volume updates
+    _subscriptions.add(
+      _player.stream.volume.listen((vol) {
+        if (!mounted || _isDisposing) return;
+        setState(() {
+          _currentVolume = vol;
+        });
       }),
     );
 
@@ -374,6 +386,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final newPos = state.position + const Duration(seconds: 10);
       final target = newPos < state.duration ? newPos : state.duration;
       _safeSeek(target);
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      final v = (_player.state.volume + 5.0).clamp(0.0, 100.0);
+      _player.setVolume(v);
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      final v = (_player.state.volume - 5.0).clamp(0.0, 100.0);
+      _player.setVolume(v);
     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
       _stopAndExit();
     } else if (event.logicalKey == LogicalKeyboardKey.keyS) {
@@ -554,6 +572,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 onRetrySource: () {
                   if (state.currentSource != null) {
                     _loadSourceIntoPlayer(state.currentSource!, state.position);
+                  }
+                },
+                currentVolume: _currentVolume,
+                onVolumeChanged: (vol) {
+                  _player.setVolume(vol);
+                },
+                onOpenExternal: () {
+                  final src = state.currentSource?.url;
+                  if (src != null && src.isNotEmpty) {
+                    final title = '${state.anime?.title ?? "Anime"} - Episode ${state.currentEpisode?.number ?? 1}';
+                    ExternalPlayerService.openOrShareEpisode(
+                      context: context,
+                      title: title,
+                      urlOrPath: src,
+                      isLocalFile: src.startsWith('/') || src.startsWith('file://'),
+                    );
                   }
                 },
                 onBack: _stopAndExit,

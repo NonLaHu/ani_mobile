@@ -5,6 +5,7 @@ import '../providers/download_provider.dart';
 import '../providers/playback_settings_provider.dart';
 import '../providers/scraper_provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/update_provider.dart';
 import '../services/scraper/scraper_factory.dart';
 import '../theme/app_theme.dart';
 
@@ -565,6 +566,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       fontSize: 13,
                       height: 1.45,
                       color: isDark ? AppTheme.textSecondary : AppTheme.lightTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Divider(),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentCyan.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.system_update_rounded, color: AppTheme.accentCyan, size: 22),
+                    ),
+                    title: const Text('Check for Updates', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    subtitle: const Text('Verify if a newer version is available'),
+                    trailing: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppTheme.accentCyan),
+                        foregroundColor: AppTheme.accentCyan,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      ),
+                      onPressed: () {
+                        UpdateController.checkManualUpdate(context, ref);
+                      },
+                      child: const Text('Check Now', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.bug_report_outlined, color: Colors.amber, size: 22),
+                    ),
+                    title: const Text('Test Update Alert (Mock)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                    subtitle: const Text('Simulate new update popup (for testing)'),
+                    trailing: TextButton(
+                      onPressed: () {
+                        UpdateController.checkManualUpdate(context, ref, forceMock: true);
+                      },
+                      child: const Text('Simulate', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(height: 16),

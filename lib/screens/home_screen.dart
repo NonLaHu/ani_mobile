@@ -9,6 +9,7 @@ import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/scraper_provider.dart';
 import '../providers/search_provider.dart';
+import '../providers/update_provider.dart';
 import '../providers/watch_history_provider.dart';
 import '../services/scraper/scraper_factory.dart';
 import '../theme/app_theme.dart';
@@ -33,6 +34,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedTab = 0; // 0: Discover, 1: Favorites
   bool _isOpeningPlayer = false;
   DateTime? _lastBackPressTime;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateController.checkStartupUpdateSilently(context, ref);
+    });
+  }
 
   @override
   void dispose() {
