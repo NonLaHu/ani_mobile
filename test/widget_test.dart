@@ -10,6 +10,7 @@ import 'package:ani_mobile/models/episode.dart';
 import 'package:ani_mobile/models/video_source.dart';
 import 'package:ani_mobile/providers/scraper_provider.dart';
 import 'package:ani_mobile/services/scraper/scraper_factory.dart';
+import 'package:ani_mobile/widgets/anime_card.dart';
 import 'package:ani_mobile/widgets/download_resolution_sheet.dart';
 import 'package:ani_mobile/widgets/loading_cycle.dart';
 
@@ -148,5 +149,40 @@ void main() {
 
     expect(selectedSource?.quality, equals('1080p'));
     expect(selectedSubUrl, equals('https://video.test/sub.vtt'));
+  });
+
+  testWidgets('AnimeCard displays SUB • DUB when both available, and only SUB when only sub', (WidgetTester tester) async {
+    const dualAnime = Anime(
+      id: 'dual-1',
+      title: 'Dual Anime',
+      coverImage: 'https://example.com/cover.jpg',
+      synopsis: 'Test synopsis',
+      hasSub: true,
+      hasDub: true,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: Scaffold(
+          body: ProviderScope(
+            child: SizedBox(
+              width: 180,
+              height: 260,
+              child: AnimeCard(
+                anime: dualAnime,
+                onTap: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('SUB'), findsOneWidget);
+    expect(find.text('DUB'), findsOneWidget);
+    expect(find.text('•'), findsOneWidget);
   });
 }

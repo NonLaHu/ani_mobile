@@ -694,10 +694,11 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                   isCtaLoading
                                       ? 'Loading Stream...'
                                       : (history != null
-                                          ? 'Resume Episode ${resumeEp.number} (${history.formattedProgress.split(' / ').first})'
+                                          ? 'Resume Episode ${resumeEp.number}\n(${history.formattedProgress.split(' / ').first})'
                                           : 'Watch Episode 1'),
+                                  textAlign: TextAlign.center,
                                   style: const TextStyle(
-                                    fontSize: 15,
+                                    fontSize: 14.5,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -1105,32 +1106,39 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                                       fontSize: 14,
                                     ),
                                   ),
-                                  subtitle: Row(
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(
-                                        ep.isDub ? 'English Dub' : 'Japanese Sub',
-                                        style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                          fontSize: 11.5,
-                                        ),
-                                      ),
-                                      if (ep.isFiller) ...[
-                                        const SizedBox(width: 8),
-                                        const Text(
-                                          '• Filler',
-                                          style: TextStyle(
-                                            color: Colors.orangeAccent,
-                                            fontSize: 11,
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            ep.isDub ? 'English Dub' : 'Japanese Sub',
+                                            style: TextStyle(
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                              fontSize: 11.5,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                          if (ep.isFiller) ...[
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              '• Filler',
+                                              style: TextStyle(
+                                                color: Colors.orangeAccent,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
                                       if (isCurrentlyWatched) ...[
-                                        const SizedBox(width: 8),
+                                        const SizedBox(height: 3),
                                         Text(
-                                          '• Resume ${history.formattedProgress.split(' / ').first}',
+                                          'Resume (${history.formattedProgress.split(' / ').first})',
                                           style: const TextStyle(
                                             color: AppTheme.accentCyan,
-                                            fontSize: 11,
+                                            fontSize: 11.5,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),

@@ -185,24 +185,98 @@ class _AnimeCardState extends ConsumerState<AnimeCard> {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 2.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryPurple.withOpacity(0.9),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  widget.anime.hasDub ? 'DUB' : 'SUB',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
+                              Builder(
+                                builder: (context) {
+                                  final hasSub = widget.anime.hasSub || (!widget.anime.hasSub && !widget.anime.hasDub);
+                                  final hasDub = widget.anime.hasDub;
+
+                                  if (hasSub && hasDub) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 2.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.8),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: AppTheme.accentCyan.withOpacity(0.5), width: 0.8),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'SUB',
+                                            style: TextStyle(
+                                              color: AppTheme.accentCyan,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                          SizedBox(width: 3),
+                                          Text(
+                                            '•',
+                                            style: TextStyle(
+                                              color: Colors.white54,
+                                              fontSize: 8,
+                                            ),
+                                          ),
+                                          SizedBox(width: 3),
+                                          Text(
+                                            'DUB',
+                                            style: TextStyle(
+                                              color: AppTheme.primaryPurpleLight,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.3,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  } else if (hasDub) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 2.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryPurple.withOpacity(0.9),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'DUB',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.4,
+                                        ),
+                                      ),
+                                    );
+                                  } else {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 2.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1E293B).withOpacity(0.9),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: AppTheme.accentCyan.withOpacity(0.6), width: 0.8),
+                                      ),
+                                      child: const Text(
+                                        'SUB',
+                                        style: TextStyle(
+                                          color: AppTheme.accentCyan,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.4,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
                               ),
                             ],
                           ),
