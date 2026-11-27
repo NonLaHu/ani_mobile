@@ -1,8 +1,8 @@
 {
-  "latest_version": "1.0.1",
+  "latest_version": "1.0.2",
   "min_supported_version": "1.0.0",
-  "release_title": "v1.0.1 - Gestures, External Player & Performance Improvements",
-  "release_notes": "• Volume swipe gesture: drag up/down on video player to adjust volume\n• External video player support: open streams directly in VLC, MX Player, or MPV\n• VPN troubleshooting hints for geo-restricted streams\n• Fixed resume status placement & download page light theme contrast\n• Dual SUB/DUB badge logic & automated GitHub release pipeline",
-  "download_url": "https://github.com/NonLaHu/ani_mobile/releases/tag/v1.0.1",
-  "apk_url": "https://github.com/NonLaHu/ani_mobile/releases/download/v1.0.1/ani_mobile-v1.0.1.apk"
+  "release_title": "v1.0.2 - Offline Next Episode Navigation & Playback Position Fix",
+  "release_notes": "• Offline Next Episode: automatic discovery and seamless next/previous navigation across downloaded episodes directly in the offline folder\n• Fixed episode advance position: clicking Next Episode now always starts cleanly from 0:00 instead of jumping to the end\n• Player isolation: terminating player metrics are quarantined during stream transitions to prevent watch history corruption\n• Full multi-ABI support for offline & in-app updates",
+  "download_url": "https://github.com/NonLaHu/ani_mobile/releases/tag/v1.0.2",
+  "apk_url": "https://github.com/NonLaHu/ani_mobile/releases/download/v1.0.2/ani_mobile-v1.0.2.apk"
 }

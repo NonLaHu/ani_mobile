@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ani_mobile/models/anime.dart';
 import 'package:ani_mobile/models/app_update_info.dart';
@@ -10,6 +11,7 @@ import 'package:ani_mobile/models/video_source.dart';
 import 'package:ani_mobile/models/watch_history.dart';
 import 'package:ani_mobile/providers/download_provider.dart';
 import 'package:ani_mobile/providers/playback_settings_provider.dart';
+import 'package:ani_mobile/providers/player_provider.dart';
 import 'package:ani_mobile/services/download/download_service.dart';
 import 'package:ani_mobile/services/scraper/anime_scraper_service.dart';
 import 'package:ani_mobile/services/scraper/demo_scraper_service.dart';
@@ -427,27 +429,96 @@ void main() {
     });
 
     test('AppUpdateDownloadService resolves compatible APK binary and download URL', () {
-      final apkName = AppUpdateDownloadService.getCompatibleApkFileName('1.0.1');
+      final apkName = AppUpdateDownloadService.getCompatibleApkFileName('1.0.2');
       expect(apkName.endsWith('.apk'), isTrue);
 
       final dlUrl = AppUpdateDownloadService.getDownloadUrl(
         repo: 'NonLaHu/ani_mobile',
-        version: '1.0.1',
+        version: '1.0.2',
         fileName: apkName,
       );
-      expect(dlUrl, contains('NonLaHu/ani_mobile/releases/download/v1.0.1/$apkName'));
+      expect(dlUrl, contains('NonLaHu/ani_mobile/releases/download/v1.0.2/$apkName'));
 
       const state = AppUpdateDownloadState(
         status: UpdateDownloadStatus.downloading,
         progress: 0.5,
         downloadedBytes: 15 * 1024 * 1024,
         totalBytes: 30 * 1024 * 1024,
-        version: '1.0.1',
+        version: '1.0.2',
         fileName: 'test.apk',
       );
       expect(state.isDownloading, isTrue);
       expect(state.formattedProgress, equals('50%'));
       expect(state.formattedDownloadedSize, contains('15.0 MB / 30.0 MB'));
+    });
+
+    test('PlayerState offline mode, episode index & hasNextEpisode resolution', () {
+      const anime = Anime(id: 'test-anime', title: 'Test Anime', coverImage: '', synopsis: '');
+      const ep1 = Episode(id: 'ep1', animeId: 'test-anime', number: 1, title: 'Episode 1');
+      const ep2 = Episode(id: 'ep2', animeId: 'test-anime', number: 2, title: 'Episode 2');
+
+      const onlineSource = VideoSource(url: 'https://example.com/stream.m3u8', quality: '1080p', isHls: true);
+      const offlineSource = VideoSource(url: '/local/storage/ep1.mp4', quality: 'Offline', isHls: false, serverName: 'Downloaded File');
+
+      // Online state with playlist
+      final onlineState = const PlayerState().copyWith(
+        anime: anime,
+        currentEpisode: ep1,
+        playlist: [ep1, ep2],
+        currentSource: onlineSource,
+        position: const Duration(minutes: 23, seconds: 50),
+      );
+
+      expect(onlineState.isOfflineMode, isFalse);
+      expect(onlineState.currentEpisodeIndex, equals(0));
+      expect(onlineState.hasNextEpisode, isTrue);
+      expect(onlineState.nextEpisode?.number, equals(2));
+
+      // Offline single episode state allows next episode search
+      final offlineState = const PlayerState().copyWith(
+        anime: anime,
+        currentEpisode: ep1,
+        playlist: [ep1],
+        currentSource: offlineSource,
+      );
+
+      expect(offlineState.isOfflineMode, isTrue);
+      expect(offlineState.hasNextEpisode, isTrue);
+    });
+
+    test('PlayerNotifier quarantines metrics while loading and resets position to zero', () {
+      final container = ProviderContainer();
+      final notifier = container.read(playerProvider.notifier);
+
+      const anime = Anime(id: 'test-anime', title: 'Test Anime', coverImage: '', synopsis: '');
+      const ep1 = Episode(id: 'ep1', animeId: 'test-anime', number: 1, title: 'Episode 1');
+      const ep2 = Episode(id: 'ep2', animeId: 'test-anime', number: 2, title: 'Episode 2');
+      const source = VideoSource(url: '/storage/test.mp4', quality: 'Offline', isHls: false, serverName: 'Downloaded File');
+
+      notifier.setupOfflineEpisode(
+        anime: anime,
+        episode: ep1,
+        playlist: [ep1, ep2],
+        source: source,
+        resumePositionSeconds: 120,
+      );
+
+      expect(container.read(playerProvider).position.inSeconds, equals(120));
+
+      // Setting loading stream quarantines old metrics
+      container.read(playerProvider.notifier).seekTo(const Duration(minutes: 24));
+      expect(container.read(playerProvider).position.inSeconds, equals(1440));
+
+      // Simulate playing next episode: position resets to 0:00 and isLoadingStream is true
+      final currentState = container.read(playerProvider);
+      container.read(playerProvider.notifier).state = currentState.copyWith(
+        isLoadingStream: true,
+        position: Duration.zero,
+      );
+
+      // Even if old player position event arrives during load, it is rejected
+      notifier.updatePlaybackMetrics(position: const Duration(minutes: 24));
+      expect(container.read(playerProvider).position, equals(Duration.zero));
     });
   });
 }

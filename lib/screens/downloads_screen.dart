@@ -27,7 +27,7 @@ class DownloadsScreen extends ConsumerWidget {
       url: diskFile.file.path,
       quality: 'Offline (${diskFile.formattedSize})',
       isHls: false,
-      serverName: 'Local Storage',
+      serverName: 'Downloaded File',
     );
 
     final anime = Anime(
@@ -46,10 +46,31 @@ class DownloadsScreen extends ConsumerWidget {
       isSub: !diskFile.isDub,
     );
 
+    // Build the offline playlist from all downloaded files for this anime, sorted by episode number
+    final downloadState = ref.read(downloadProvider);
+    final normTitle = DownloadState.normalizeTitle(diskFile.animeTitle);
+    final animeFiles = downloadState.diskFiles
+        .where((df) => DownloadState.normalizeTitle(df.animeTitle) == normTitle)
+        .toList()
+      ..sort((a, b) => a.episodeNumber.compareTo(b.episodeNumber));
+
+    final playlist = animeFiles.isNotEmpty
+        ? animeFiles
+            .map((df) => Episode(
+                  id: df.file.path,
+                  animeId: anime.id,
+                  number: df.episodeNumber,
+                  title: 'Episode ${df.episodeNumber}',
+                  isDub: df.isDub,
+                  isSub: !df.isDub,
+                ))
+            .toList()
+        : [episode];
+
     ref.read(playerProvider.notifier).setupOfflineEpisode(
           anime: anime,
           episode: episode,
-          playlist: [episode],
+          playlist: playlist,
           source: offlineSource,
         );
 

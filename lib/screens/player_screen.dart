@@ -85,6 +85,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _subscriptions.add(
       _player.stream.position.listen((pos) {
         if (!mounted || _isDisposing) return;
+        final curState = ref.read(playerProvider);
+        if (curState.isLoadingStream || _lastLoadedUrl == null) return;
         ref.read(playerProvider.notifier).updatePlaybackMetrics(position: pos);
       }),
     );
@@ -174,6 +176,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           final notifier = ref.read(playerProvider.notifier);
           final playerState = ref.read(playerProvider);
           if (playerState.hasNextEpisode) {
+            _player.stop();
+            _lastLoadedUrl = null;
             notifier.playNextEpisode();
           }
         }
@@ -233,6 +237,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     print('Playing stream: ${source.url}');
     print('Injecting HTTP Headers: ${source.headers}');
+
+    try {
+      await _player.stop();
+    } catch (_) {}
 
     // Inject custom headers (User-Agent, Referer, etc.) into Media instance natively
     final media = Media(
@@ -399,10 +407,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _safeSeek(target);
     } else if (event.logicalKey == LogicalKeyboardKey.keyN) {
       if (state.hasNextEpisode) {
+        _player.stop();
+        _lastLoadedUrl = null;
         ref.read(playerProvider.notifier).playNextEpisode();
       }
     } else if (event.logicalKey == LogicalKeyboardKey.keyP) {
       if (state.hasPreviousEpisode) {
+        _player.stop();
+        _lastLoadedUrl = null;
         ref.read(playerProvider.notifier).playPreviousEpisode();
       }
     }
@@ -416,10 +428,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ref.listen<PlayerState>(playerProvider, (previous, next) {
       final nextSrc = next.currentSource;
       final prevSrc = previous?.currentSource;
-      if (nextSrc != null && nextSrc.url != prevSrc?.url) {
+      final episodeChanged = previous?.currentEpisode?.id != next.currentEpisode?.id ||
+          previous?.currentEpisode?.number != next.currentEpisode?.number;
+
+      if (nextSrc != null && (nextSrc.url != prevSrc?.url || episodeChanged)) {
+        // When advancing/switching episodes, always start at 0:00 (unless specific resume position was requested)
+        final effectivePos = episodeChanged ? Duration.zero : next.position;
         _loadSourceIntoPlayer(
           nextSrc,
-          next.position,
+          effectivePos,
         );
       }
     });
@@ -560,10 +577,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   final target = ref.read(playerProvider.notifier).getIntroSkipTarget();
                   _safeSeek(target);
                 },
-                onPlayNext: () {
+                onPlayNext: () async {
+                  try {
+                    await _player.stop();
+                  } catch (_) {}
+                  _lastLoadedUrl = null;
                   ref.read(playerProvider.notifier).playNextEpisode();
                 },
-                onPlayPrevious: () {
+                onPlayPrevious: () async {
+                  try {
+                    await _player.stop();
+                  } catch (_) {}
+                  _lastLoadedUrl = null;
                   ref.read(playerProvider.notifier).playPreviousEpisode();
                 },
                 onSelectSource: (source) {

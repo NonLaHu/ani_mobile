@@ -31,10 +31,10 @@ Grab the latest release directly from [GitHub Releases](https://github.com/NonLa
 
 | Package / Architecture | Target Devices | Description |
 | :--- | :--- | :--- |
-| **`ani_mobile-v1.0.1.apk`** | **All Devices (Universal)** | Universal APK containing all native ABIs. Compatible with any Android 5.0+ device. |
-| **`ani_mobile-v1.0.1-arm64-v8a.apk`** | 64-bit ARM | Optimized for modern smartphones and tablets (smaller file size). |
-| **`ani_mobile-v1.0.1-armeabi-v7a.apk`** | 32-bit ARM | For legacy or budget 32-bit Android devices. |
-| **`ani_mobile-v1.0.1-x86_64.apk`** | 64-bit x86 | Best for Android emulators, ChromeOS, and x86 tablets. |
+| **`ani_mobile-v1.0.2.apk`** | **All Devices (Universal)** | Universal APK containing all native ABIs. Compatible with any Android 5.0+ device. |
+| **`ani_mobile-v1.0.2-arm64-v8a.apk`** | 64-bit ARM | Optimized for modern smartphones and tablets (smaller file size). |
+| **`ani_mobile-v1.0.2-armeabi-v7a.apk`** | 32-bit ARM | For legacy or budget 32-bit Android devices. |
+| **`ani_mobile-v1.0.2-x86_64.apk`** | 64-bit x86 | Best for Android emulators, ChromeOS, and x86 tablets. |
 
 > [!TIP]
 > **Automatic In-App Updates**: `ani-mobile` checks GitHub Releases on startup. When a new version is available, you can view release notes and download/install the update directly within the app in one tap.

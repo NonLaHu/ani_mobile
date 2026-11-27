@@ -147,10 +147,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             isHls: false,
             serverName: 'Downloaded File',
           );
+          final downloadState = ref.read(downloadProvider);
+          final normTitle = DownloadState.normalizeTitle(anime.title);
+          final animeFiles = downloadState.diskFiles
+              .where((df) => DownloadState.normalizeTitle(df.animeTitle) == normTitle)
+              .toList()
+            ..sort((a, b) => a.episodeNumber.compareTo(b.episodeNumber));
+
+          final offlinePlaylist = animeFiles.isNotEmpty
+              ? animeFiles
+                  .map((df) => Episode(
+                        id: df.file.path,
+                        animeId: anime.id,
+                        number: df.episodeNumber,
+                        title: 'Episode ${df.episodeNumber}',
+                        isDub: df.isDub,
+                        isSub: !df.isDub,
+                      ))
+                  .toList()
+              : [episode];
+
           ref.read(playerProvider.notifier).setupOfflineEpisode(
                 anime: anime,
                 episode: episode,
-                playlist: [episode],
+                playlist: offlinePlaylist,
                 source: offlineSource,
               );
           return true;

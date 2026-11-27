@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/anime.dart';
 import '../models/episode.dart';
 import '../models/video_source.dart';
+import '../services/download/download_service.dart';
 import '../services/scraper/anime_scraper_service.dart';
 import '../services/scraper/live_scraper_service.dart';
 import 'anime_details_provider.dart';
+import 'download_provider.dart';
+import 'playback_settings_provider.dart';
 import 'scraper_provider.dart';
 import 'watch_history_provider.dart';
 
@@ -45,28 +48,56 @@ class PlayerState {
     this.playbackSpeed = 1.0,
   });
 
-  bool get hasNextEpisode {
-    if (currentEpisode == null || playlist.isEmpty) return false;
+  /// Identifies if the current media is a local offline file
+  bool get isOfflineMode {
+    final s = currentSource;
+    if (s == null) return false;
+    return s.serverName == 'Downloaded File' ||
+        s.serverName == 'Local Storage' ||
+        !s.url.startsWith('http');
+  }
+
+  /// Locates index of current episode in playlist by ID or episode number
+  int get currentEpisodeIndex {
+    if (currentEpisode == null || playlist.isEmpty) return -1;
     final idx = playlist.indexWhere((e) => e.id == currentEpisode!.id);
-    return idx >= 0 && idx + 1 < playlist.length;
+    if (idx != -1) return idx;
+    return playlist.indexWhere((e) =>
+        e.number == currentEpisode!.number &&
+        (e.isDub == currentEpisode!.isDub || e.id == currentEpisode!.id));
+  }
+
+  bool get hasNextEpisode {
+    if (currentEpisode == null) return false;
+    final idx = currentEpisodeIndex;
+    if (idx >= 0 && idx + 1 < playlist.length) return true;
+    // In offline mode, allow clicking next to search download folder for the next episode
+    if (isOfflineMode) return true;
+    return false;
   }
 
   bool get hasPreviousEpisode {
-    if (currentEpisode == null || playlist.isEmpty) return false;
-    final idx = playlist.indexWhere((e) => e.id == currentEpisode!.id);
-    return idx > 0;
+    if (currentEpisode == null) return false;
+    final idx = currentEpisodeIndex;
+    if (idx > 0) return true;
+    if (isOfflineMode && currentEpisode!.number > 1) return true;
+    return false;
   }
 
   Episode? get nextEpisode {
-    if (!hasNextEpisode) return null;
-    final idx = playlist.indexWhere((e) => e.id == currentEpisode!.id);
-    return playlist[idx + 1];
+    final idx = currentEpisodeIndex;
+    if (idx >= 0 && idx + 1 < playlist.length) {
+      return playlist[idx + 1];
+    }
+    return null;
   }
 
   Episode? get previousEpisode {
-    if (!hasPreviousEpisode) return null;
-    final idx = playlist.indexWhere((e) => e.id == currentEpisode!.id);
-    return playlist[idx - 1];
+    final idx = currentEpisodeIndex;
+    if (idx > 0 && idx - 1 < playlist.length) {
+      return playlist[idx - 1];
+    }
+    return null;
   }
 
   bool get canSkipIntro {
@@ -128,6 +159,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     required List<Episode> playlist,
     int? resumePositionSeconds,
   }) async {
+    final initialPos = Duration(seconds: resumePositionSeconds ?? 0);
     state = state.copyWith(
       anime: anime,
       currentEpisode: episode,
@@ -135,10 +167,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       isLoadingStream: true,
       errorMessage: null,
       infoMessage: null,
-      position: Duration(seconds: resumePositionSeconds ?? 0),
+      position: initialPos,
+      duration: Duration.zero,
+      buffer: Duration.zero,
     );
 
-    return await _fetchStreams(episode);
+    return await _fetchStreams(episode, initialPosition: initialPos);
   }
 
   /// Sets up playback for a downloaded offline episode
@@ -149,6 +183,31 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     required VideoSource source,
     int? resumePositionSeconds,
   }) {
+    List<Episode> effectivePlaylist = List.from(playlist);
+
+    // Auto-discover and populate all downloaded episodes for this anime if playlist is empty or single-item
+    if (effectivePlaylist.length <= 1) {
+      final diskFiles = ref.read(downloadProvider).diskFiles;
+      final normTitle = DownloadState.normalizeTitle(anime.title);
+      final matching = diskFiles
+          .where((df) => DownloadState.normalizeTitle(df.animeTitle) == normTitle)
+          .toList()
+        ..sort((a, b) => a.episodeNumber.compareTo(b.episodeNumber));
+
+      if (matching.isNotEmpty) {
+        effectivePlaylist = matching
+            .map((df) => Episode(
+                  id: df.file.path,
+                  animeId: anime.id,
+                  number: df.episodeNumber,
+                  title: 'Episode ${df.episodeNumber}',
+                  isDub: df.isDub,
+                  isSub: !df.isDub,
+                ))
+            .toList();
+      }
+    }
+
     final bundle = StreamBundle(
       episodeId: episode.id,
       animeId: anime.id,
@@ -159,15 +218,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     state = PlayerState(
       anime: anime,
       currentEpisode: episode,
-      playlist: playlist,
+      playlist: effectivePlaylist,
       streamBundle: bundle,
       currentSource: source,
       isLoadingStream: false,
       position: Duration(seconds: resumePositionSeconds ?? 0),
+      duration: Duration.zero,
+      buffer: Duration.zero,
     );
   }
 
-  Future<bool> _fetchStreams(Episode episode) async {
+  Future<bool> _fetchStreams(Episode episode, {Duration? initialPosition}) async {
     try {
       final scraper = ref.read(scraperServiceProvider);
       StreamBundle bundle;
@@ -203,6 +264,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         currentSource: preferred,
         isLoadingStream: false,
         errorMessage: null,
+        position: initialPosition ?? Duration.zero,
+        duration: Duration.zero,
+        buffer: Duration.zero,
       );
       return true;
     } catch (e) {
@@ -247,26 +311,296 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     return false;
   }
 
-  /// Advances to next episode in playlist
+  /// Searches for a downloaded episode in the ani_mobile offline folder and tracked disk files
+  Future<DiskVideoFile?> findOfflineEpisode(String animeTitle, int episodeNumber, {bool? isDub}) async {
+    final normSearch = DownloadState.normalizeTitle(animeTitle);
+
+    // 1. Check in-memory disk files list
+    final currentDiskFiles = ref.read(downloadProvider).diskFiles;
+    for (final df in currentDiskFiles) {
+      if (df.episodeNumber == episodeNumber &&
+          (isDub == null || df.isDub == isDub) &&
+          DownloadState.normalizeTitle(df.animeTitle) == normSearch &&
+          df.file.existsSync() &&
+          df.file.lengthSync() > 0) {
+        return df;
+      }
+    }
+
+    // Check with relaxed dub matching if specific variant not found
+    for (final df in currentDiskFiles) {
+      if (df.episodeNumber == episodeNumber &&
+          DownloadState.normalizeTitle(df.animeTitle) == normSearch &&
+          df.file.existsSync() &&
+          df.file.lengthSync() > 0) {
+        return df;
+      }
+    }
+
+    // 2. Scan physical download folder directly
+    try {
+      final scannedFiles = await ref.read(downloadServiceProvider).scanDownloadedFiles();
+      for (final df in scannedFiles) {
+        if (df.episodeNumber == episodeNumber &&
+            (isDub == null || df.isDub == isDub) &&
+            DownloadState.normalizeTitle(df.animeTitle) == normSearch &&
+            df.file.existsSync() &&
+            df.file.lengthSync() > 0) {
+          return df;
+        }
+      }
+      for (final df in scannedFiles) {
+        if (df.episodeNumber == episodeNumber &&
+            DownloadState.normalizeTitle(df.animeTitle) == normSearch &&
+            df.file.existsSync() &&
+            df.file.lengthSync() > 0) {
+          return df;
+        }
+      }
+    } catch (e) {
+      print('Error scanning offline folder for episode: $e');
+    }
+
+    return null;
+  }
+
+  /// Searches for any higher episode downloaded offline (e.g. jumping from Ep 1 to Ep 3)
+  Future<DiskVideoFile?> findNextAvailableOfflineEpisode(String animeTitle, int currentEpNumber) async {
+    final normSearch = DownloadState.normalizeTitle(animeTitle);
+    final currentDiskFiles = ref.read(downloadProvider).diskFiles;
+
+    final matching = currentDiskFiles
+        .where((df) =>
+            DownloadState.normalizeTitle(df.animeTitle) == normSearch &&
+            df.episodeNumber > currentEpNumber &&
+            df.file.existsSync() &&
+            df.file.lengthSync() > 0)
+        .toList()
+      ..sort((a, b) => a.episodeNumber.compareTo(b.episodeNumber));
+
+    if (matching.isNotEmpty) {
+      return matching.first;
+    }
+
+    try {
+      final scannedFiles = await ref.read(downloadServiceProvider).scanDownloadedFiles();
+      final scannedMatching = scannedFiles
+          .where((df) =>
+              DownloadState.normalizeTitle(df.animeTitle) == normSearch &&
+              df.episodeNumber > currentEpNumber &&
+              df.file.existsSync() &&
+              df.file.lengthSync() > 0)
+          .toList()
+        ..sort((a, b) => a.episodeNumber.compareTo(b.episodeNumber));
+
+      if (scannedMatching.isNotEmpty) {
+        return scannedMatching.first;
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// Advances to next episode in playlist or searches offline downloads folder
   Future<void> playNextEpisode() async {
-    final next = state.nextEpisode;
-    if (next != null && state.anime != null) {
+    final currentEp = state.currentEpisode;
+    final anime = state.anime;
+    if (currentEp == null || anime == null) return;
+
+    // Immediately flag loading & reset position to zero so new episode starts cleanly at 0:00
+    state = state.copyWith(
+      isLoadingStream: true,
+      position: Duration.zero,
+      duration: Duration.zero,
+      buffer: Duration.zero,
+      errorMessage: null,
+      infoMessage: null,
+    );
+
+    final isOffline = state.isOfflineMode;
+    final nextEpNumber = currentEp.number + 1;
+    Episode? targetNext = state.nextEpisode;
+
+    // 1. Search the offline download folder on disk for the next episode
+    final offlineMatch = await findOfflineEpisode(anime.title, nextEpNumber, isDub: currentEp.isDub);
+
+    if (offlineMatch != null) {
+      final nextEpisode = targetNext ??
+          Episode(
+            id: offlineMatch.file.path,
+            animeId: anime.id,
+            number: offlineMatch.episodeNumber,
+            title: 'Episode ${offlineMatch.episodeNumber}',
+            isDub: offlineMatch.isDub,
+            isSub: !offlineMatch.isDub,
+          );
+
+      final offlineSource = VideoSource(
+        url: offlineMatch.file.path,
+        quality: 'Offline (${offlineMatch.formattedSize})',
+        isHls: false,
+        serverName: 'Downloaded File',
+      );
+
+      List<Episode> updatedPlaylist = List.from(state.playlist);
+      if (!updatedPlaylist.any((e) => e.number == nextEpisode.number && e.isDub == nextEpisode.isDub)) {
+        updatedPlaylist.add(nextEpisode);
+        updatedPlaylist.sort((a, b) => a.number.compareTo(b.number));
+      }
+
+      setupOfflineEpisode(
+        anime: anime,
+        episode: nextEpisode,
+        playlist: updatedPlaylist,
+        source: offlineSource,
+        resumePositionSeconds: 0,
+      );
+      return;
+    }
+
+    // 2. If no exact match for nextEpNumber, check if any higher episode exists offline (e.g. Ep 1 to Ep 3)
+    if (isOffline) {
+      final higherOfflineMatch = await findNextAvailableOfflineEpisode(anime.title, currentEp.number);
+      if (higherOfflineMatch != null) {
+        final nextEpisode = Episode(
+          id: higherOfflineMatch.file.path,
+          animeId: anime.id,
+          number: higherOfflineMatch.episodeNumber,
+          title: 'Episode ${higherOfflineMatch.episodeNumber}',
+          isDub: higherOfflineMatch.isDub,
+          isSub: !higherOfflineMatch.isDub,
+        );
+
+        final offlineSource = VideoSource(
+          url: higherOfflineMatch.file.path,
+          quality: 'Offline (${higherOfflineMatch.formattedSize})',
+          isHls: false,
+          serverName: 'Downloaded File',
+        );
+
+        List<Episode> updatedPlaylist = List.from(state.playlist);
+        if (!updatedPlaylist.any((e) => e.number == nextEpisode.number && e.isDub == nextEpisode.isDub)) {
+          updatedPlaylist.add(nextEpisode);
+          updatedPlaylist.sort((a, b) => a.number.compareTo(b.number));
+        }
+
+        setupOfflineEpisode(
+          anime: anime,
+          episode: nextEpisode,
+          playlist: updatedPlaylist,
+          source: offlineSource,
+          resumePositionSeconds: 0,
+        );
+        return;
+      }
+
+      // Offline mode and no more offline episodes on disk
+      if (targetNext != null) {
+        // Try streaming online if target exists in playlist
+        final ok = await setupEpisode(
+          anime: anime,
+          episode: targetNext,
+          playlist: state.playlist,
+          resumePositionSeconds: 0,
+        );
+        if (!ok) {
+          state = state.copyWith(
+            isLoadingStream: false,
+            errorMessage: 'Episode $nextEpNumber is not downloaded offline, and stream loading failed.',
+          );
+        }
+        return;
+      }
+
+      state = state.copyWith(
+        isLoadingStream: false,
+        infoMessage: 'No further downloaded episodes found in the offline folder.',
+      );
+      return;
+    }
+
+    // 3. Online mode fallback: load next episode and ensure position starts at 0:00
+    if (targetNext != null) {
       await setupEpisode(
-        anime: state.anime!,
-        episode: next,
+        anime: anime,
+        episode: targetNext,
         playlist: state.playlist,
+        resumePositionSeconds: 0,
+      );
+    } else {
+      state = state.copyWith(
+        isLoadingStream: false,
+        infoMessage: 'Reached the end of the episode list.',
       );
     }
   }
 
-  /// Rewinds to previous episode in playlist
+  /// Rewinds to previous episode in playlist or searches offline downloads folder
   Future<void> playPreviousEpisode() async {
-    final prev = state.previousEpisode;
-    if (prev != null && state.anime != null) {
+    final currentEp = state.currentEpisode;
+    final anime = state.anime;
+    if (currentEp == null || anime == null) return;
+
+    state = state.copyWith(
+      isLoadingStream: true,
+      position: Duration.zero,
+      duration: Duration.zero,
+      buffer: Duration.zero,
+      errorMessage: null,
+      infoMessage: null,
+    );
+
+    final prevEpNumber = currentEp.number - 1;
+    Episode? targetPrev = state.previousEpisode;
+
+    if (prevEpNumber >= 1) {
+      final offlineMatch = await findOfflineEpisode(anime.title, prevEpNumber, isDub: currentEp.isDub);
+      if (offlineMatch != null) {
+        final prevEpisode = targetPrev ??
+            Episode(
+              id: offlineMatch.file.path,
+              animeId: anime.id,
+              number: offlineMatch.episodeNumber,
+              title: 'Episode ${offlineMatch.episodeNumber}',
+              isDub: offlineMatch.isDub,
+              isSub: !offlineMatch.isDub,
+            );
+
+        final offlineSource = VideoSource(
+          url: offlineMatch.file.path,
+          quality: 'Offline (${offlineMatch.formattedSize})',
+          isHls: false,
+          serverName: 'Downloaded File',
+        );
+
+        List<Episode> updatedPlaylist = List.from(state.playlist);
+        if (!updatedPlaylist.any((e) => e.number == prevEpisode.number && e.isDub == prevEpisode.isDub)) {
+          updatedPlaylist.add(prevEpisode);
+          updatedPlaylist.sort((a, b) => a.number.compareTo(b.number));
+        }
+
+        setupOfflineEpisode(
+          anime: anime,
+          episode: prevEpisode,
+          playlist: updatedPlaylist,
+          source: offlineSource,
+          resumePositionSeconds: 0,
+        );
+        return;
+      }
+    }
+
+    if (targetPrev != null) {
       await setupEpisode(
-        anime: state.anime!,
-        episode: prev,
+        anime: anime,
+        episode: targetPrev,
         playlist: state.playlist,
+        resumePositionSeconds: 0,
+      );
+    } else {
+      state = state.copyWith(
+        isLoadingStream: false,
+        infoMessage: 'No previous episode available.',
       );
     }
   }
@@ -279,6 +613,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     bool? isPlaying,
     bool? isBuffering,
   }) {
+    // If a new stream or episode is loading, ignore metrics from the terminating player
+    if (state.isLoadingStream) {
+      return;
+    }
+
     state = state.copyWith(
       position: position,
       duration: duration,

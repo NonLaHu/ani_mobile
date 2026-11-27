@@ -12,7 +12,7 @@ import 'app_update_download_service.dart';
 /// Service responsible for querying app updates and presenting update alerts.
 class UpdateService {
   final Dio _dio;
-  static const String currentAppVersion = '1.0.1';
+  static const String currentAppVersion = '1.0.2';
   static const String githubRepo = 'NonLaHu/ani_mobile';
   static const String githubReleasesUrl = 'https://github.com/$githubRepo/releases';
   static const String versionJsonUrl =
